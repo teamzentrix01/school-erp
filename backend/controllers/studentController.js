@@ -20,7 +20,12 @@ const aadharUpload = multer({
   storage: aadharStorage,
   limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
   fileFilter: (req, file, cb) => {
-    const allowed = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
+    const allowed = [
+      "image/jpeg",
+      "image/png",
+      "image/webp",
+      "application/pdf",
+    ];
     if (allowed.includes(file.mimetype)) cb(null, true);
     else cb(new Error("Only JPG, PNG, WebP or PDF allowed for Aadhaar"));
   },
@@ -30,10 +35,14 @@ const aadharUpload = multer({
 const getProfile = async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT s.*, u.name, u.email FROM students s 
-       JOIN users u ON s.user_id = u.id 
+      `SELECT s.*, u.name, u.email, teacher_user.name AS class_teacher
+       FROM students s
+       JOIN users u ON s.user_id = u.id
+       LEFT JOIN classes c ON c.id = s.class_id
+       LEFT JOIN teachers class_teacher ON class_teacher.id = c.teacher_id
+       LEFT JOIN users teacher_user ON teacher_user.id = class_teacher.user_id
        WHERE s.user_id = $1`,
-      [req.user.id]
+      [req.user.id],
     );
     if (result.rows.length === 0)
       return res.status(404).json({ message: "Profile not found" });
@@ -49,14 +58,14 @@ const getAttendance = async (req, res) => {
   try {
     const student = await pool.query(
       "SELECT id FROM students WHERE user_id=$1",
-      [req.user.id]
+      [req.user.id],
     );
     if (student.rows.length === 0)
       return res.status(404).json({ message: "Student not found" });
 
     const result = await pool.query(
       "SELECT * FROM attendance WHERE student_id=$1 ORDER BY date DESC LIMIT 60",
-      [student.rows[0].id]
+      [student.rows[0].id],
     );
     res.json(result.rows);
   } catch (err) {
@@ -69,14 +78,19 @@ const getResults = async (req, res) => {
   try {
     const student = await pool.query(
       "SELECT id FROM students WHERE user_id=$1",
-      [req.user.id]
+      [req.user.id],
     );
     if (student.rows.length === 0)
       return res.status(404).json({ message: "Student not found" });
 
     const result = await pool.query(
-      "SELECT * FROM results WHERE student_id=$1 ORDER BY exam_date DESC",
-      [student.rows[0].id]
+      `SELECT r.*, e.name AS exam_name, e.academic_year, e.class, e.section
+       FROM results r
+       LEFT JOIN exams e ON e.id = r.exam_id
+       WHERE r.student_id = $1
+         AND (r.exam_id IS NULL OR r.published = TRUE)
+       ORDER BY r.exam_date DESC, e.created_at DESC, r.subject`,
+      [student.rows[0].id],
     );
     res.json(result.rows);
   } catch (err) {
@@ -89,14 +103,14 @@ const getFees = async (req, res) => {
   try {
     const student = await pool.query(
       "SELECT id FROM students WHERE user_id=$1",
-      [req.user.id]
+      [req.user.id],
     );
     if (student.rows.length === 0)
       return res.status(404).json({ message: "Student not found" });
 
     const result = await pool.query(
       "SELECT * FROM fees WHERE student_id=$1 ORDER BY due_date DESC",
-      [student.rows[0].id]
+      [student.rows[0].id],
     );
     res.json(result.rows);
   } catch (err) {
@@ -109,7 +123,7 @@ const getAssignments = async (req, res) => {
   try {
     const student = await pool.query(
       "SELECT class, section FROM students WHERE user_id=$1",
-      [req.user.id]
+      [req.user.id],
     );
     if (student.rows.length === 0)
       return res.status(404).json({ message: "Student not found" });
@@ -122,7 +136,7 @@ const getAssignments = async (req, res) => {
        JOIN users u ON t.user_id = u.id
        WHERE c.class_name=$1 AND c.section=$2
        ORDER BY a.due_date DESC`,
-      [cls, section]
+      [cls, section],
     );
     res.json(result.rows);
   } catch (err) {
@@ -136,21 +150,19 @@ const getTimetable = async (req, res) => {
     // class_id directly use karo — name matching se bachao
     const student = await pool.query(
       "SELECT class_id, class, section FROM students WHERE user_id=$1",
-      [req.user.id]
+      [req.user.id],
     );
     if (student.rows.length === 0)
       return res.status(404).json({ message: "Student not found" });
 
     const { class_id, class: cls, section } = student.rows[0];
-    
-    console.log("DEBUG timetable:", { class_id, cls, section }); // debug ke liye
 
     if (!class_id) {
       return res.json([]); // class_id nahi hai toh empty
     }
 
-  const result = await pool.query(
-  `SELECT 
+    const result = await pool.query(
+      `SELECT 
      tt.id,
      tt.class_id,
      tt.teacher_id,
@@ -182,8 +194,8 @@ const getTimetable = async (req, res) => {
        WHEN 'Saturday'  THEN 6
      END,
      tt.start_time`,
-  [class_id]
-);
+      [class_id],
+    );
     res.json(result.rows);
   } catch (err) {
     console.error("getTimetable error:", err);
@@ -194,11 +206,39 @@ const getTimetable = async (req, res) => {
 // ─── GET /api/student/teachers ────────────────────────────────────────────────
 const getTeachers = async (req, res) => {
   try {
+    const studentResult = await pool.query(
+      "SELECT class_id, class, section FROM students WHERE user_id = $1",
+      [req.user.id],
+    );
+    if (studentResult.rows.length === 0) {
+      return res.status(404).json({ message: "Student not found" });
+    }
+
+    const student = studentResult.rows[0];
     const result = await pool.query(
-      `SELECT t.id, u.name, u.email, t.subject, t.phone
+      `SELECT DISTINCT
+         t.id,
+         u.name,
+         u.email,
+         t.phone,
+         COALESCE(ts.subject, t.subject) AS subject,
+         (c.teacher_id = t.id) AS is_class_teacher
        FROM teachers t
        JOIN users u ON t.user_id = u.id
-       ORDER BY u.name ASC`
+       LEFT JOIN teacher_subjects ts ON ts.teacher_id = t.id
+       LEFT JOIN classes c ON c.id = $1
+       WHERE c.teacher_id = t.id
+          OR (
+            ts.section = $3
+            AND (
+              ts.class_name = $2
+              OR ts.class_name = CONCAT('Class ', $2)
+              OR ts.class_name = c.grade
+              OR ts.class_name = c.class_name
+            )
+          )
+       ORDER BY u.name ASC`,
+      [student.class_id, student.class, student.section],
     );
     res.json(result.rows);
   } catch (err) {
@@ -222,7 +262,7 @@ const uploadAadharImage = [
 
       await pool.query(
         "UPDATE students SET aadhar_image_url = $1 WHERE id = $2",
-        [imageUrl, req.params.id]
+        [imageUrl, req.params.id],
       );
 
       res.json({
@@ -243,18 +283,142 @@ const updateAadharNumber = async (req, res) => {
     const { aadhar_number } = req.body;
 
     if (!aadhar_number || !/^\d{12}$/.test(aadhar_number)) {
-      return res.status(400).json({ message: "Valid 12-digit Aadhaar number is required" });
+      return res
+        .status(400)
+        .json({ message: "Valid 12-digit Aadhaar number is required" });
     }
 
-    await pool.query(
-      "UPDATE students SET aadhar_number = $1 WHERE id = $2",
-      [aadhar_number, req.params.id]
-    );
+    await pool.query("UPDATE students SET aadhar_number = $1 WHERE id = $2", [
+      aadhar_number,
+      req.params.id,
+    ]);
 
     res.json({ message: "Aadhaar number updated successfully" });
   } catch (err) {
     console.error("updateAadharNumber error:", err);
     res.status(500).json({ message: "Failed to update Aadhaar number" });
+  }
+};
+
+const getCampusServices = async (req, res) => {
+  try {
+    const studentResult = await pool.query(
+      "SELECT id FROM students WHERE user_id=$1",
+      [req.user.id],
+    );
+    if (!studentResult.rows.length) {
+      return res.status(404).json({ message: "Student not found" });
+    }
+    const studentId = studentResult.rows[0].id;
+    const [transport, hostel, leaves, complaints] = await Promise.all([
+      pool.query(
+        `SELECT st.*,tr.route_code,tr.name AS route_name,tr.area,tr.stops,
+                tr.departure_time,tr.return_time,tv.registration_number,
+                tv.driver_name,tv.driver_phone
+         FROM student_transport st
+         JOIN transport_routes tr ON tr.id=st.route_id
+         LEFT JOIN transport_vehicles tv ON tv.id=tr.vehicle_id
+         WHERE st.student_id=$1 AND st.active=TRUE`,
+        [studentId],
+      ),
+      pool.query(
+        `SELECT sha.*,h.name AS hostel_name,h.hostel_type,h.address,
+                h.warden_name,h.warden_phone,hr.room_number,hr.floor,hb.bed_label
+         FROM student_hostel_allocations sha
+         JOIN hostels h ON h.id=sha.hostel_id
+         JOIN hostel_rooms hr ON hr.id=sha.room_id
+         JOIN hostel_beds hb ON hb.id=sha.bed_id
+         WHERE sha.student_id=$1 AND sha.status='Active'`,
+        [studentId],
+      ),
+      pool.query(
+        "SELECT * FROM hostel_leave_requests WHERE student_id=$1 ORDER BY created_at DESC",
+        [studentId],
+      ),
+      pool.query(
+        "SELECT * FROM hostel_complaints WHERE student_id=$1 ORDER BY created_at DESC",
+        [studentId],
+      ),
+    ]);
+    res.json({
+      transport: transport.rows[0] || null,
+      hostel: hostel.rows[0] || null,
+      leave_requests: leaves.rows,
+      complaints: complaints.rows,
+    });
+  } catch (error) {
+    console.error("getCampusServices:", error);
+    res.status(500).json({ message: "Failed to load campus services" });
+  }
+};
+
+const createHostelLeave = async (req, res) => {
+  const { from_date, to_date, reason } = req.body;
+  if (!from_date || !to_date || from_date > to_date) {
+    return res.status(400).json({ message: "Valid leave dates are required" });
+  }
+  try {
+    const allocation = await pool.query(
+      `SELECT sha.id,sha.student_id FROM student_hostel_allocations sha
+       JOIN students s ON s.id=sha.student_id
+       WHERE s.user_id=$1 AND sha.status='Active'`,
+      [req.user.id],
+    );
+    if (!allocation.rows.length) {
+      return res.status(409).json({ message: "No active hostel allocation" });
+    }
+    const result = await pool.query(
+      `INSERT INTO hostel_leave_requests
+         (allocation_id,student_id,from_date,to_date,reason)
+       VALUES ($1,$2,$3,$4,$5) RETURNING *`,
+      [
+        allocation.rows[0].id,
+        allocation.rows[0].student_id,
+        from_date,
+        to_date,
+        reason || null,
+      ],
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error("createHostelLeave:", error);
+    res.status(500).json({ message: "Failed to submit leave request" });
+  }
+};
+
+const createHostelComplaint = async (req, res) => {
+  const { category = "General", priority = "Medium", description } = req.body;
+  if (!description?.trim()) {
+    return res
+      .status(400)
+      .json({ message: "Complaint description is required" });
+  }
+  try {
+    const allocation = await pool.query(
+      `SELECT sha.id,sha.student_id FROM student_hostel_allocations sha
+       JOIN students s ON s.id=sha.student_id
+       WHERE s.user_id=$1 AND sha.status='Active'`,
+      [req.user.id],
+    );
+    if (!allocation.rows.length) {
+      return res.status(409).json({ message: "No active hostel allocation" });
+    }
+    const result = await pool.query(
+      `INSERT INTO hostel_complaints
+         (allocation_id,student_id,category,priority,description)
+       VALUES ($1,$2,$3,$4,$5) RETURNING *`,
+      [
+        allocation.rows[0].id,
+        allocation.rows[0].student_id,
+        category,
+        priority,
+        description.trim(),
+      ],
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error("createHostelComplaint:", error);
+    res.status(500).json({ message: "Failed to submit complaint" });
   }
 };
 
@@ -266,6 +430,9 @@ module.exports = {
   getAssignments,
   getTimetable,
   getTeachers,
-  uploadAadharImage,   // ← NEW
-  updateAadharNumber,  // ← NEW
+  getCampusServices,
+  createHostelLeave,
+  createHostelComplaint,
+  uploadAadharImage, // ← NEW
+  updateAadharNumber, // ← NEW
 };

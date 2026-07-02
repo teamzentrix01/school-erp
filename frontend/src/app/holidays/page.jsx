@@ -286,7 +286,7 @@ export default function HolidaysPage() {
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm py-20 text-center">
               <Calendar size={40} className="mx-auto text-gray-200 mb-3" />
               <p className="text-base font-semibold text-gray-500">No holidays added for {year}</p>
-              <p className="text-sm text-gray-400 mt-1">Click "Add Holiday" to start</p>
+              <p className="text-sm text-gray-400 mt-1">Click &quot;Add Holiday&quot; to start</p>
             </div>
           ) : (
             <div className="space-y-6">

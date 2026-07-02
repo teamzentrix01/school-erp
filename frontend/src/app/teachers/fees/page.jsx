@@ -451,7 +451,7 @@
 //     if (!activeClass) return;
 //     setStudentsLoading(true);
 //     try {
-//       const cls = activeClass.grade || 
+//       const cls = activeClass.grade ||
 //             (activeClass.class_name || "").replace(/^Class\s+/i, "").trim();
 //       const section = activeClass.section || "";
 //       const params  = new URLSearchParams({ class: cls, academic_year: "2024-25", limit: "200" });
@@ -654,36 +654,35 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import TeacherSidebar from "@/components/TeacherSidebar";
+import { apiFetch } from "@/lib/api";
 import {
-  Search, CheckCircle, Clock, AlertCircle, IndianRupee,
-  RefreshCw, ChevronDown, Users,
+  Search,
+  CheckCircle,
+  Clock,
+  AlertCircle,
+  IndianRupee,
+  RefreshCw,
+  ChevronDown,
+  Users,
 } from "lucide-react";
-
-const getToken = () => {
-  if (typeof window === "undefined") return null;
-  const m = document.cookie.match(/(^| )token=([^;]+)/);
-  return m ? m[2] : null;
-};
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
-
-const apiFetch = (path, opts = {}) =>
-  fetch(`${API_BASE}/api${path}`, {
-    headers: { Authorization: `Bearer ${getToken()}` },
-    ...opts,
-  }).then((r) => {
-    if (!r.ok) throw new Error(`${r.status}`);
-    return r.json();
-  });
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const AVATAR_COLORS = [
-  "bg-blue-500","bg-violet-500","bg-rose-500","bg-amber-500",
-  "bg-emerald-500","bg-cyan-500","bg-pink-500","bg-indigo-500",
+  "bg-blue-500",
+  "bg-violet-500",
+  "bg-rose-500",
+  "bg-amber-500",
+  "bg-emerald-500",
+  "bg-cyan-500",
+  "bg-pink-500",
+  "bg-indigo-500",
 ];
 function getInitials(name = "") {
   const p = name.trim().split(" ").filter(Boolean);
   if (!p.length) return "?";
-  return p.length === 1 ? p[0][0].toUpperCase() : (p[0][0] + p[p.length-1][0]).toUpperCase();
+  return p.length === 1
+    ? p[0][0].toUpperCase()
+    : (p[0][0] + p[p.length - 1][0]).toUpperCase();
 }
 function avatarColor(name = "") {
   let h = 0;
@@ -692,16 +691,42 @@ function avatarColor(name = "") {
 }
 
 const STATUS_MAP = {
-  Paid:    { bg:"bg-emerald-50", text:"text-emerald-700", ring:"ring-emerald-200", dot:"bg-emerald-500", icon: CheckCircle },
-  Pending: { bg:"bg-amber-50",   text:"text-amber-700",   ring:"ring-amber-200",   dot:"bg-amber-500",   icon: Clock       },
-  Partial: { bg:"bg-blue-50",    text:"text-blue-700",    ring:"ring-blue-200",    dot:"bg-blue-500",    icon: Clock       },
-  Overdue: { bg:"bg-red-50",     text:"text-red-700",     ring:"ring-red-200",     dot:"bg-red-500",     icon: AlertCircle },
+  Paid: {
+    bg: "bg-emerald-50",
+    text: "text-emerald-700",
+    ring: "ring-emerald-200",
+    dot: "bg-emerald-500",
+    icon: CheckCircle,
+  },
+  Pending: {
+    bg: "bg-amber-50",
+    text: "text-amber-700",
+    ring: "ring-amber-200",
+    dot: "bg-amber-500",
+    icon: Clock,
+  },
+  Partial: {
+    bg: "bg-blue-50",
+    text: "text-blue-700",
+    ring: "ring-blue-200",
+    dot: "bg-blue-500",
+    icon: Clock,
+  },
+  Overdue: {
+    bg: "bg-red-50",
+    text: "text-red-700",
+    ring: "ring-red-200",
+    dot: "bg-red-500",
+    icon: AlertCircle,
+  },
 };
 
 function StatusBadge({ status }) {
   const s = STATUS_MAP[status] || STATUS_MAP.Pending;
   return (
-    <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold ring-1 ${s.bg} ${s.text} ${s.ring}`}>
+    <span
+      className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold ring-1 ${s.bg} ${s.text} ${s.ring}`}
+    >
       <span className={`w-1.5 h-1.5 rounded-full ${s.dot}`} />
       {status || "Pending"}
     </span>
@@ -709,22 +734,21 @@ function StatusBadge({ status }) {
 }
 
 export default function TeacherFeesPage() {
-  const [classes,        setClasses]         = useState([]);
-  const [activeClassIdx, setActiveClassIdx]  = useState(0);
-  const [students,       setStudents]        = useState([]);
-  const [loading,        setLoading]         = useState(true);
-  const [studentsLoading,setStudentsLoading] = useState(false);
-  const [search,         setSearch]          = useState("");
-  const [filterStatus,   setFilterStatus]    = useState("All");
-  const [classFilter,    setClassFilter]     = useState(""); // for dropdown on mobile
+  const [classes, setClasses] = useState([]);
+  const [activeClassIdx, setActiveClassIdx] = useState(0);
+  const [students, setStudents] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [studentsLoading, setStudentsLoading] = useState(false);
+  const [search, setSearch] = useState("");
+  const [filterStatus, setFilterStatus] = useState("All");
+  const [classFilter, setClassFilter] = useState(""); // for dropdown on mobile
 
   // Load classes
   const loadClasses = useCallback(async () => {
     setLoading(true);
     try {
-      
-const data = await apiFetch("/teacher/classes");
-      setClasses(data || []);
+      const data = await apiFetch("/teacher/classes");
+      setClasses(Array.isArray(data) ? data : []);
     } catch {
       setClasses([]);
     } finally {
@@ -732,7 +756,9 @@ const data = await apiFetch("/teacher/classes");
     }
   }, []);
 
-  useEffect(() => { loadClasses(); }, [loadClasses]);
+  useEffect(() => {
+    loadClasses();
+  }, [loadClasses]);
 
   const activeClass = classes[activeClassIdx] || null;
 
@@ -740,48 +766,63 @@ const data = await apiFetch("/teacher/classes");
     if (!activeClass) return;
     setStudentsLoading(true);
     try {
-      const cls     = activeClass.class || activeClass.grade || activeClass.class_name;
+      const cls =
+        activeClass.class || activeClass.grade || activeClass.class_name;
       const section = activeClass.section || "";
-      const params  = new URLSearchParams({ class: cls, academic_year: "2024-25", limit: "200" });
+      const params = new URLSearchParams({
+        class: cls,
+        academic_year: "2024-25",
+        limit: "200",
+      });
       if (section) params.append("section", section);
       const data = await apiFetch(`/fees/students?${params}`);
-      console.log("Students fetched:", data);
-      setStudents(data.data || []);
+      setStudents(Array.isArray(data?.data) ? data.data : []);
     } catch (err) {
-    console.error("Error:", err);
       setStudents([]);
     } finally {
       setStudentsLoading(false);
     }
   }, [activeClass]);
 
-  useEffect(() => { loadStudents(); }, [loadStudents]);
+  useEffect(() => {
+    loadStudents();
+  }, [loadStudents]);
 
   const stats = useMemo(() => {
-    const paid    = students.filter(s => s.status === "Paid").length;
-    const pending = students.filter(s => s.status === "Pending" || !s.status).length;
-    const partial = students.filter(s => s.status === "Partial").length;
-    const totalCollected = students.reduce((a, s) => a + Number(s.paid_amount || 0), 0);
-    const totalDue       = students.reduce((a, s) => a + Number(s.total_fees  || 0), 0);
+    const paid = students.filter((s) => s.status === "Paid").length;
+    const pending = students.filter(
+      (s) => s.status === "Pending" || !s.status,
+    ).length;
+    const partial = students.filter((s) => s.status === "Partial").length;
+    const totalCollected = students.reduce(
+      (a, s) => a + Number(s.paid_amount || 0),
+      0,
+    );
+    const totalDue = students.reduce(
+      (a, s) => a + Number(s.total_fees || 0),
+      0,
+    );
     const totalRemaining = totalDue - totalCollected;
     return { paid, pending, partial, totalCollected, totalDue, totalRemaining };
   }, [students]);
 
   const filtered = useMemo(() => {
     let list = students;
-    if (filterStatus !== "All") list = list.filter(s => (s.status || "Pending") === filterStatus);
+    if (filterStatus !== "All")
+      list = list.filter((s) => (s.status || "Pending") === filterStatus);
     if (search) {
       const q = search.toLowerCase();
-      list = list.filter(s =>
-        s.name?.toLowerCase().includes(q) ||
-        String(s.roll_no || s.roll_number || "").includes(q)
+      list = list.filter(
+        (s) =>
+          s.name?.toLowerCase().includes(q) ||
+          String(s.roll_no || s.roll_number || "").includes(q),
       );
     }
     return list;
   }, [students, filterStatus, search]);
 
   return (
-    <div className="flex min-h-screen bg-gray-50">
+    <div className="portal-saffron flex min-h-screen bg-gray-50">
       <TeacherSidebar />
 
       <main className="flex-1 min-w-0 flex flex-col overflow-hidden">
@@ -789,15 +830,19 @@ const data = await apiFetch("/teacher/classes");
         <div className="bg-white border-b border-gray-100 px-4 sm:px-6 py-4 shadow-sm">
           <div className="pl-10 lg:pl-0 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
-              <h1 className="text-xl font-bold text-gray-900">Student Fees Overview</h1>
-              <p className="text-sm text-gray-400 mt-0.5">Read-only · Academic Year 2024-25</p>
+              <h1 className="text-xl font-bold text-gray-900">
+                Student Fees Overview
+              </h1>
+              <p className="text-sm text-gray-400 mt-0.5">
+                Read-only · Academic Year 2024-25
+              </p>
             </div>
             <div className="flex items-center gap-2">
               <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 w-full sm:w-56">
                 <Search size={14} className="text-gray-400 flex-shrink-0" />
                 <input
                   value={search}
-                  onChange={e => setSearch(e.target.value)}
+                  onChange={(e) => setSearch(e.target.value)}
                   placeholder="Search students…"
                   className="bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none w-full"
                 />
@@ -806,14 +851,16 @@ const data = await apiFetch("/teacher/classes");
                 onClick={loadStudents}
                 className="p-2 rounded-xl border border-gray-200 text-gray-400 hover:bg-gray-50 transition-colors"
               >
-                <RefreshCw size={14} className={studentsLoading ? "animate-spin" : ""} />
+                <RefreshCw
+                  size={14}
+                  className={studentsLoading ? "animate-spin" : ""}
+                />
               </button>
             </div>
           </div>
         </div>
 
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-5">
-
           {/* Class Tabs */}
           {loading ? (
             <div className="h-10 bg-gray-100 rounded-xl animate-pulse w-64" />
@@ -822,14 +869,19 @@ const data = await apiFetch("/teacher/classes");
               {classes.map((cls, i) => (
                 <button
                   key={cls.id || i}
-                  onClick={() => { setActiveClassIdx(i); setSearch(""); setFilterStatus("All"); }}
+                  onClick={() => {
+                    setActiveClassIdx(i);
+                    setSearch("");
+                    setFilterStatus("All");
+                  }}
                   className={`flex-shrink-0 px-4 py-2 rounded-xl text-xs font-semibold border transition-all ${
                     i === activeClassIdx
                       ? "bg-violet-600 text-white border-transparent shadow-md"
                       : "bg-white text-gray-500 border-gray-100 hover:border-violet-200"
                   }`}
                 >
-                  Class {cls.grade || cls.class_name}{cls.section ? `-${cls.section}` : ""}
+                  Class {cls.grade || cls.class_name}
+                  {cls.section ? `-${cls.section}` : ""}
                 </button>
               ))}
             </div>
@@ -842,22 +894,36 @@ const data = await apiFetch("/teacher/classes");
                 <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
                   <p className="text-xs text-gray-400 mb-1">Total Collected</p>
                   <p className="text-xl font-bold text-emerald-600 flex items-center gap-1">
-                    <IndianRupee size={14} />{stats.totalCollected.toLocaleString("en-IN")}
+                    <IndianRupee size={14} />
+                    {stats.totalCollected.toLocaleString("en-IN")}
                   </p>
                 </div>
                 <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
                   <p className="text-xs text-gray-400 mb-1">Total Remaining</p>
                   <p className="text-xl font-bold text-red-500 flex items-center gap-1">
-                    <IndianRupee size={14} />{stats.totalRemaining.toLocaleString("en-IN")}
+                    <IndianRupee size={14} />
+                    {stats.totalRemaining.toLocaleString("en-IN")}
                   </p>
                 </div>
                 <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
                   <p className="text-xs text-gray-400 mb-1">Fully Paid</p>
-                  <p className="text-xl font-bold text-emerald-600">{stats.paid} <span className="text-sm font-normal text-gray-400">students</span></p>
+                  <p className="text-xl font-bold text-emerald-600">
+                    {stats.paid}{" "}
+                    <span className="text-sm font-normal text-gray-400">
+                      students
+                    </span>
+                  </p>
                 </div>
                 <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
-                  <p className="text-xs text-gray-400 mb-1">Pending / Partial</p>
-                  <p className="text-xl font-bold text-amber-600">{stats.pending + stats.partial} <span className="text-sm font-normal text-gray-400">students</span></p>
+                  <p className="text-xs text-gray-400 mb-1">
+                    Pending / Partial
+                  </p>
+                  <p className="text-xl font-bold text-amber-600">
+                    {stats.pending + stats.partial}{" "}
+                    <span className="text-sm font-normal text-gray-400">
+                      students
+                    </span>
+                  </p>
                 </div>
               </div>
 
@@ -865,19 +931,28 @@ const data = await apiFetch("/teacher/classes");
               {stats.totalDue > 0 && (
                 <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-5 py-4">
                   <div className="flex items-center justify-between mb-2">
-                    <p className="text-xs font-semibold text-gray-500">Collection Progress</p>
+                    <p className="text-xs font-semibold text-gray-500">
+                      Collection Progress
+                    </p>
                     <p className="text-xs font-bold text-emerald-600">
-                      {((stats.totalCollected / stats.totalDue) * 100).toFixed(1)}%
+                      {((stats.totalCollected / stats.totalDue) * 100).toFixed(
+                        1,
+                      )}
+                      %
                     </p>
                   </div>
                   <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden">
                     <div
                       className="h-full bg-emerald-400 rounded-full transition-all"
-                      style={{ width: `${Math.min(100, (stats.totalCollected / stats.totalDue) * 100)}%` }}
+                      style={{
+                        width: `${Math.min(100, (stats.totalCollected / stats.totalDue) * 100)}%`,
+                      }}
                     />
                   </div>
                   <div className="flex justify-between mt-1.5 text-[10px] text-gray-400">
-                    <span>₹{stats.totalCollected.toLocaleString("en-IN")} collected</span>
+                    <span>
+                      ₹{stats.totalCollected.toLocaleString("en-IN")} collected
+                    </span>
                     <span>₹{stats.totalDue.toLocaleString("en-IN")} total</span>
                   </div>
                 </div>
@@ -885,7 +960,7 @@ const data = await apiFetch("/teacher/classes");
 
               {/* Filter pills */}
               <div className="flex gap-2 flex-wrap">
-                {["All", "Paid", "Partial", "Pending", "Overdue"].map(s => (
+                {["All", "Paid", "Partial", "Pending", "Overdue"].map((s) => (
                   <button
                     key={s}
                     onClick={() => setFilterStatus(s)}
@@ -898,12 +973,20 @@ const data = await apiFetch("/teacher/classes");
                     {s}
                     {s !== "All" && (
                       <span className="ml-1 text-[10px] opacity-70">
-                        ({students.filter(st => (st.status || "Pending") === s).length})
+                        (
+                        {
+                          students.filter(
+                            (st) => (st.status || "Pending") === s,
+                          ).length
+                        }
+                        )
                       </span>
                     )}
                   </button>
                 ))}
-                <span className="ml-auto text-xs text-gray-400 self-center">{filtered.length} students</span>
+                <span className="ml-auto text-xs text-gray-400 self-center">
+                  {filtered.length} students
+                </span>
               </div>
             </>
           )}
@@ -911,13 +994,22 @@ const data = await apiFetch("/teacher/classes");
           {/* Student List */}
           {studentsLoading ? (
             <div className="space-y-3">
-              {[...Array(5)].map((_, i) => <div key={i} className="h-16 bg-gray-100 rounded-xl animate-pulse" />)}
+              {[...Array(5)].map((_, i) => (
+                <div
+                  key={i}
+                  className="h-16 bg-gray-100 rounded-xl animate-pulse"
+                />
+              ))}
             </div>
           ) : students.length === 0 && activeClass ? (
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm py-20 text-center">
               <Users size={36} className="mx-auto text-gray-200 mb-3" />
-              <p className="text-sm font-semibold text-gray-500">No fee records for this class</p>
-              <p className="text-xs text-gray-400 mt-1">Admin needs to set fees for this class first</p>
+              <p className="text-sm font-semibold text-gray-500">
+                No fee records for this class
+              </p>
+              <p className="text-xs text-gray-400 mt-1">
+                Admin needs to set fees for this class first
+              </p>
             </div>
           ) : (
             <>
@@ -926,51 +1018,96 @@ const data = await apiFetch("/teacher/classes");
                 <table className="w-full text-sm min-w-[680px]">
                   <thead className="bg-gray-50 border-b border-gray-100">
                     <tr>
-                      {["Student", "Roll No.", "Total Fees", "Paid", "Remaining", "Status"].map(h => (
-                        <th key={h} className="px-4 py-3.5 text-left text-[11px] font-bold text-gray-400 uppercase tracking-wider whitespace-nowrap">{h}</th>
+                      {[
+                        "Student",
+                        "Roll No.",
+                        "Total Fees",
+                        "Paid",
+                        "Remaining",
+                        "Status",
+                      ].map((h) => (
+                        <th
+                          key={h}
+                          className="px-4 py-3.5 text-left text-[11px] font-bold text-gray-400 uppercase tracking-wider whitespace-nowrap"
+                        >
+                          {h}
+                        </th>
                       ))}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-50">
-                    {filtered.length > 0 ? filtered.map(s => {
-                      const remaining = Number(s.total_fees || 0) - Number(s.paid_amount || 0);
-                      return (
-                        <tr key={s.id} className="hover:bg-gray-50/60 transition-colors">
-                          <td className="px-4 py-3">
-                            <div className="flex items-center gap-3">
-                              <div className={`w-8 h-8 rounded-xl ${avatarColor(s.name)} flex items-center justify-center text-white text-xs font-bold flex-shrink-0`}>
-                                {getInitials(s.name)}
+                    {filtered.length > 0 ? (
+                      filtered.map((s) => {
+                        const remaining =
+                          Number(s.total_fees || 0) -
+                          Number(s.paid_amount || 0);
+                        return (
+                          <tr
+                            key={s.id}
+                            className="hover:bg-gray-50/60 transition-colors"
+                          >
+                            <td className="px-4 py-3">
+                              <div className="flex items-center gap-3">
+                                <div
+                                  className={`w-8 h-8 rounded-xl ${avatarColor(s.name)} flex items-center justify-center text-white text-xs font-bold flex-shrink-0`}
+                                >
+                                  {getInitials(s.name)}
+                                </div>
+                                <div>
+                                  <p className="font-semibold text-gray-900 text-sm">
+                                    {s.name}
+                                  </p>
+                                  <p className="text-xs text-gray-400">
+                                    {s.email}
+                                  </p>
+                                </div>
                               </div>
-                              <div>
-                                <p className="font-semibold text-gray-900 text-sm">{s.name}</p>
-                                <p className="text-xs text-gray-400">{s.email}</p>
+                            </td>
+                            <td className="px-4 py-3 font-mono text-xs text-gray-500">
+                              {s.roll_no || s.roll_number || "—"}
+                            </td>
+                            <td className="px-4 py-3">
+                              <div className="text-sm font-semibold text-gray-800 flex items-center gap-0.5">
+                                <IndianRupee
+                                  size={12}
+                                  className="text-gray-400"
+                                />
+                                {Number(s.total_fees || 0).toLocaleString(
+                                  "en-IN",
+                                )}
                               </div>
-                            </div>
-                          </td>
-                          <td className="px-4 py-3 font-mono text-xs text-gray-500">{s.roll_no || s.roll_number || "—"}</td>
-                          <td className="px-4 py-3">
-                            <div className="text-sm font-semibold text-gray-800 flex items-center gap-0.5">
-                              <IndianRupee size={12} className="text-gray-400" />
-                              {Number(s.total_fees || 0).toLocaleString("en-IN")}
-                            </div>
-                          </td>
-                          <td className="px-4 py-3">
-                            <div className="text-sm font-semibold text-emerald-600 flex items-center gap-0.5">
-                              <IndianRupee size={12} />
-                              {Number(s.paid_amount || 0).toLocaleString("en-IN")}
-                            </div>
-                          </td>
-                          <td className="px-4 py-3">
-                            <div className={`text-sm font-semibold flex items-center gap-0.5 ${remaining > 0 ? "text-red-500" : "text-emerald-500"}`}>
-                              <IndianRupee size={12} />
-                              {remaining.toLocaleString("en-IN")}
-                            </div>
-                          </td>
-                          <td className="px-4 py-3"><StatusBadge status={s.status} /></td>
-                        </tr>
-                      );
-                    }) : (
-                      <tr><td colSpan={6} className="py-14 text-center text-sm text-gray-400">No students match the filter</td></tr>
+                            </td>
+                            <td className="px-4 py-3">
+                              <div className="text-sm font-semibold text-emerald-600 flex items-center gap-0.5">
+                                <IndianRupee size={12} />
+                                {Number(s.paid_amount || 0).toLocaleString(
+                                  "en-IN",
+                                )}
+                              </div>
+                            </td>
+                            <td className="px-4 py-3">
+                              <div
+                                className={`text-sm font-semibold flex items-center gap-0.5 ${remaining > 0 ? "text-red-500" : "text-emerald-500"}`}
+                              >
+                                <IndianRupee size={12} />
+                                {remaining.toLocaleString("en-IN")}
+                              </div>
+                            </td>
+                            <td className="px-4 py-3">
+                              <StatusBadge status={s.status} />
+                            </td>
+                          </tr>
+                        );
+                      })
+                    ) : (
+                      <tr>
+                        <td
+                          colSpan={6}
+                          className="py-14 text-center text-sm text-gray-400"
+                        >
+                          No students match the filter
+                        </td>
+                      </tr>
                     )}
                   </tbody>
                 </table>
@@ -978,32 +1115,59 @@ const data = await apiFetch("/teacher/classes");
 
               {/* Mobile Cards */}
               <div className="sm:hidden space-y-3">
-                {filtered.map(s => {
-                  const remaining = Number(s.total_fees || 0) - Number(s.paid_amount || 0);
+                {filtered.map((s) => {
+                  const remaining =
+                    Number(s.total_fees || 0) - Number(s.paid_amount || 0);
                   return (
-                    <div key={s.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+                    <div
+                      key={s.id}
+                      className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4"
+                    >
                       <div className="flex items-center gap-3 mb-3">
-                        <div className={`w-10 h-10 rounded-xl ${avatarColor(s.name)} flex items-center justify-center text-white font-bold text-sm flex-shrink-0`}>
+                        <div
+                          className={`w-10 h-10 rounded-xl ${avatarColor(s.name)} flex items-center justify-center text-white font-bold text-sm flex-shrink-0`}
+                        >
                           {getInitials(s.name)}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="font-semibold text-gray-900 truncate">{s.name}</p>
-                          <p className="text-xs text-gray-400">Roll {s.roll_no || s.roll_number || "—"}</p>
+                          <p className="font-semibold text-gray-900 truncate">
+                            {s.name}
+                          </p>
+                          <p className="text-xs text-gray-400">
+                            Roll {s.roll_no || s.roll_number || "—"}
+                          </p>
                         </div>
                         <StatusBadge status={s.status} />
                       </div>
                       <div className="grid grid-cols-3 gap-2 text-center">
                         <div className="bg-gray-50 rounded-xl px-2 py-2">
-                          <p className="text-[10px] text-gray-400 mb-0.5">Total</p>
-                          <p className="text-xs font-bold text-gray-800">₹{Number(s.total_fees||0).toLocaleString("en-IN")}</p>
+                          <p className="text-[10px] text-gray-400 mb-0.5">
+                            Total
+                          </p>
+                          <p className="text-xs font-bold text-gray-800">
+                            ₹{Number(s.total_fees || 0).toLocaleString("en-IN")}
+                          </p>
                         </div>
                         <div className="bg-emerald-50 rounded-xl px-2 py-2">
-                          <p className="text-[10px] text-gray-400 mb-0.5">Paid</p>
-                          <p className="text-xs font-bold text-emerald-600">₹{Number(s.paid_amount||0).toLocaleString("en-IN")}</p>
+                          <p className="text-[10px] text-gray-400 mb-0.5">
+                            Paid
+                          </p>
+                          <p className="text-xs font-bold text-emerald-600">
+                            ₹
+                            {Number(s.paid_amount || 0).toLocaleString("en-IN")}
+                          </p>
                         </div>
-                        <div className={`rounded-xl px-2 py-2 ${remaining > 0 ? "bg-red-50" : "bg-emerald-50"}`}>
-                          <p className="text-[10px] text-gray-400 mb-0.5">Remaining</p>
-                          <p className={`text-xs font-bold ${remaining > 0 ? "text-red-500" : "text-emerald-500"}`}>₹{remaining.toLocaleString("en-IN")}</p>
+                        <div
+                          className={`rounded-xl px-2 py-2 ${remaining > 0 ? "bg-red-50" : "bg-emerald-50"}`}
+                        >
+                          <p className="text-[10px] text-gray-400 mb-0.5">
+                            Remaining
+                          </p>
+                          <p
+                            className={`text-xs font-bold ${remaining > 0 ? "text-red-500" : "text-emerald-500"}`}
+                          >
+                            ₹{remaining.toLocaleString("en-IN")}
+                          </p>
                         </div>
                       </div>
                     </div>

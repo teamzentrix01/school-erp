@@ -363,7 +363,7 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
                   />
                 </div>
                 <p className="text-xs text-slate-400 mt-1">
-                  We'll send a 6-digit OTP to your email
+                  We&apos;ll send a 6-digit OTP to your email
                 </p>
               </div>
 

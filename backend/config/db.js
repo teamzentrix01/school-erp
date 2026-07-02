@@ -11,9 +11,9 @@ const pool = new Pool({
 
 pool.connect((err, client, release) => {
   if (err) {
-    console.error("❌ Database connection error:", err.stack);
+    console.error("Database connection error:", err.stack);
   } else {
-    console.log("✅ Connected to PostgreSQL — school_erp");
+    console.log("Connected to PostgreSQL school_erp");
     release();
   }
 });

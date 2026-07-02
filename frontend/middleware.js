@@ -1,56 +1,74 @@
-// middleware.js — Next.js project root
-// Guards all routes with role-based access control.
-// Cookies set on login: `token` (JWT string) and `user` (JSON-encoded user object).
-
 import { NextResponse } from "next/server";
+
+const STUDENT_ROUTES = [
+  "/students/dashboard",
+  "/students/fees",
+  "/students/homework",
+  "/students/library",
+  "/students/notices",
+  "/students/profile",
+  "/students/results",
+  "/students/services",
+  "/students/teachers",
+  "/students/timetable",
+  "/students/attendance",
+  "/students/examinations",
+];
+
+const TEACHER_ROUTES = [
+  "/teachers/dashboard",
+  "/teachers/class",
+  "/teachers/fees",
+  "/teachers/lectures",
+  "/teachers/notices",
+  "/teachers/profile",
+  "/teachers/results",
+  "/teachers/attendance",
+];
+
+const isWithin = (pathname, routes) =>
+  routes.some(
+    (route) => pathname === route || pathname.startsWith(`${route}/`),
+  );
 
 export function middleware(request) {
   const { pathname } = request.nextUrl;
-
   const tokenCookie = request.cookies.get("token")?.value;
-  const userCookie  = request.cookies.get("user")?.value;
+  const userCookie = request.cookies.get("user")?.value;
 
   let user = null;
   if (userCookie) {
     try {
       user = JSON.parse(decodeURIComponent(userCookie));
     } catch {
-      // malformed cookie — treat as logged out
+      user = null;
     }
   }
 
-  const isLoggedIn = !!tokenCookie && !!user;
-
-  // ── Public routes ──────────────────────────────────────────────────────────
+  const isLoggedIn = Boolean(tokenCookie && user);
   if (pathname.startsWith("/login")) {
     if (isLoggedIn) {
-      return NextResponse.redirect(new URL(roleDashboard(user.role), request.url));
+      return NextResponse.redirect(
+        new URL(roleDashboard(user.role), request.url),
+      );
     }
     return NextResponse.next();
   }
 
-  // ── Not logged in → login ─────────────────────────────────────────────────
   if (!isLoggedIn) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
 
-  const role = user.role;
+  const studentArea = isWithin(pathname, STUDENT_ROUTES);
+  const teacherArea = isWithin(pathname, TEACHER_ROUTES);
 
-  // ── Student: can ONLY access /student/* ───────────────────────────────────
-  if (role === "student" && !pathname.startsWith("/student")) {
+  if (user.role === "student" && !studentArea) {
     return NextResponse.redirect(new URL("/students/dashboard", request.url));
   }
-
-  // ── Teacher: can ONLY access /teacher/* ───────────────────────────────────
-  if (role === "teacher" && !pathname.startsWith("/teacher")) {
+  if (user.role === "teacher" && !teacherArea) {
     return NextResponse.redirect(new URL("/teachers/dashboard", request.url));
   }
-
-  // ── Admin: cannot access /student/* or /teacher/* ─────────────────────────
-  if (
-    role === "admin" &&
-    (pathname.startsWith("/student") || pathname.startsWith("/teacher"))
-  ) {
+  if (user.role === "admin" && (studentArea || teacherArea)) {
     return NextResponse.redirect(new URL("/", request.url));
   }
 
@@ -58,15 +76,11 @@ export function middleware(request) {
 }
 
 function roleDashboard(role) {
-  switch (role) {
-    case "student": return "/students/dashboard";
-    case "teacher": return "/teachers/dashboard";
-    default:        return "/";                  // admin
-  }
+  if (role === "student") return "/students/dashboard";
+  if (role === "teacher") return "/teachers/dashboard";
+  return "/";
 }
 
 export const config = {
-  matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|api/).*)",
-  ],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|api/).*)"],
 };

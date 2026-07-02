@@ -6,9 +6,16 @@ import { apiFetch } from "@/lib/api";
 import { Search, Mail, Phone, BookOpen } from "lucide-react";
 
 const AVATAR_COLORS = [
-  "bg-blue-500","bg-violet-500","bg-rose-500",
-  "bg-amber-500","bg-emerald-500","bg-cyan-500",
-  "bg-pink-500","bg-indigo-500","bg-teal-500","bg-orange-500",
+  "bg-blue-500",
+  "bg-violet-500",
+  "bg-rose-500",
+  "bg-amber-500",
+  "bg-emerald-500",
+  "bg-cyan-500",
+  "bg-pink-500",
+  "bg-indigo-500",
+  "bg-teal-500",
+  "bg-orange-500",
 ];
 
 function getInitials(name = "") {
@@ -32,13 +39,19 @@ function TeacherCard({ teacher }) {
       <div className="h-1.5 bg-gradient-to-r from-emerald-400 to-teal-500" />
       <div className="p-5">
         <div className="flex items-center gap-4 mb-4">
-          <div className={`w-14 h-14 rounded-xl ${avatarColor(name)} flex items-center justify-center text-white font-bold text-xl flex-shrink-0`}>
+          <div
+            className={`w-14 h-14 rounded-xl ${avatarColor(name)} flex items-center justify-center text-white font-bold text-xl flex-shrink-0`}
+          >
             {getInitials(name)}
           </div>
           <div className="min-w-0">
-            <p className="font-bold text-gray-900 text-base leading-tight truncate">{name}</p>
+            <p className="font-bold text-gray-900 text-base leading-tight truncate">
+              {name}
+            </p>
             {teacher.designation && (
-              <p className="text-xs text-gray-400 mt-0.5 truncate">{teacher.designation}</p>
+              <p className="text-xs text-gray-400 mt-0.5 truncate">
+                {teacher.designation}
+              </p>
             )}
           </div>
         </div>
@@ -55,7 +68,10 @@ function TeacherCard({ teacher }) {
           {teacher.email && (
             <div className="flex items-center gap-2">
               <Mail size={13} className="text-gray-400 flex-shrink-0" />
-              <a href={`mailto:${teacher.email}`} className="text-xs text-violet-500 hover:underline truncate">
+              <a
+                href={`mailto:${teacher.email}`}
+                className="text-xs text-violet-500 hover:underline truncate"
+              >
                 {teacher.email}
               </a>
             </div>
@@ -99,16 +115,16 @@ function SkeletonCard() {
 
 export default function StudentTeachersPage() {
   const [teachers, setTeachers] = useState([]);
-  const [loading, setLoading]   = useState(true);
-  const [error, setError]       = useState("");
-  const [search, setSearch]     = useState("");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [search, setSearch] = useState("");
 
   const fetchTeachers = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
       const data = await apiFetch("/student/teachers");
-      setTeachers(data || []);
+      setTeachers(Array.isArray(data) ? data : []);
     } catch {
       setError("Could not load teachers. Please try again.");
     } finally {
@@ -116,9 +132,11 @@ export default function StudentTeachersPage() {
     }
   }, []);
 
-  useEffect(() => { fetchTeachers(); }, [fetchTeachers]);
+  useEffect(() => {
+    fetchTeachers();
+  }, [fetchTeachers]);
 
-  const filtered = teachers.filter(t => {
+  const filtered = teachers.filter((t) => {
     const q = search.toLowerCase();
     const name = (t.name || t.teacher_name || "").toLowerCase();
     const subj = (t.subject || t.subject_name || "").toLowerCase();
@@ -126,7 +144,7 @@ export default function StudentTeachersPage() {
   });
 
   return (
-    <div className="flex min-h-screen bg-gray-50">
+    <div className="portal-saffron flex min-h-screen bg-gray-50">
       <StudentSidebar />
 
       <main className="flex-1 min-w-0 flex flex-col overflow-hidden">
@@ -135,7 +153,9 @@ export default function StudentTeachersPage() {
           <div className="pl-10 lg:pl-0 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <h1 className="text-xl font-bold text-gray-900">My Teachers</h1>
-              <p className="text-sm text-gray-400">Teachers assigned to your class</p>
+              <p className="text-sm text-gray-400">
+                Teachers assigned to your class
+              </p>
             </div>
 
             {/* Search */}
@@ -143,7 +163,7 @@ export default function StudentTeachersPage() {
               <Search size={14} className="text-gray-400 flex-shrink-0" />
               <input
                 value={search}
-                onChange={e => setSearch(e.target.value)}
+                onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search name or subject…"
                 className="bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none w-full"
               />
@@ -155,7 +175,12 @@ export default function StudentTeachersPage() {
           {error && (
             <div className="mb-4 bg-red-50 border border-red-200 text-red-600 text-sm px-4 py-3 rounded-xl flex items-center justify-between">
               {error}
-              <button onClick={fetchTeachers} className="text-red-700 font-semibold hover:underline text-xs ml-4">Retry</button>
+              <button
+                onClick={fetchTeachers}
+                className="text-red-700 font-semibold hover:underline text-xs ml-4"
+              >
+                Retry
+              </button>
             </div>
           )}
 
@@ -167,20 +192,28 @@ export default function StudentTeachersPage() {
 
           {loading ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-              {[...Array(6)].map((_, i) => <SkeletonCard key={i} />)}
+              {[...Array(6)].map((_, i) => (
+                <SkeletonCard key={i} />
+              ))}
             </div>
           ) : filtered.length > 0 ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-              {filtered.map((t, i) => <TeacherCard key={t.id || i} teacher={t} />)}
+              {filtered.map((t, i) => (
+                <TeacherCard key={t.id || i} teacher={t} />
+              ))}
             </div>
           ) : (
             <div className="py-24 text-center">
               <div className="text-5xl mb-3">👨‍🏫</div>
               <p className="text-sm font-semibold text-gray-500">
-                {search ? "No teachers match your search" : "No teachers assigned yet"}
+                {search
+                  ? "No teachers match your search"
+                  : "No teachers assigned yet"}
               </p>
               <p className="text-xs text-gray-400 mt-1">
-                {search ? "Try a different name or subject" : "Your class teacher will be assigned soon"}
+                {search
+                  ? "Try a different name or subject"
+                  : "Your class teacher will be assigned soon"}
               </p>
             </div>
           )}

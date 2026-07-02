@@ -12,7 +12,7 @@ import {
 // ─────────────────────────────────────────────
 // CONFIG
 // ─────────────────────────────────────────────
-const API_BASE = `${process.env.NEXT_PUBLIC_API_URL}/api/admin`;
+const API_BASE = `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000"}/api/admin`;
 
 const DAYS    = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 const PERIODS = Array.from({ length: 7 }, (_, i) => i + 1); // [1,2,3,4,5,6,7]
@@ -315,18 +315,13 @@ export default function TimetablePage() {
   const [loadingTeachers,  setLoadingTeachers]  = useState(true);
   const [loadingTimetable, setLoadingTimetable] = useState(false);
 
-  // Dynamic teacher free periods (based on total assigned periods)
-  const [teacherFreeDaysList, setTeacherFreeDaysList] = useState([]);
-  const [teacherWithMostFreeDays, setTeacherWithMostFreeDays] = useState(null);
-
   function showToast(message, type = "success") {
     setToast({ message, type });
     setTimeout(() => setToast(null), 3500);
   }
 
   useEffect(() => {
-    setLoadingClasses(true);
-    apiFetch("/classes")
+    Promise.resolve().then(() => apiFetch("/classes"))
       .then(data => {
         setClasses(data);
         if (data.length > 0) setActiveClassId(data[0].dbId);
@@ -336,8 +331,7 @@ export default function TimetablePage() {
   }, []);
 
   useEffect(() => {
-    setLoadingTeachers(true);
-    apiFetch("/teachers")
+    Promise.resolve().then(() => apiFetch("/teachers"))
       .then(data => setTeachers(data))
       .catch(err => showToast(err.message, "error"))
       .finally(() => setLoadingTeachers(false));
@@ -352,14 +346,13 @@ export default function TimetablePage() {
       .finally(() => setLoadingTimetable(false));
   }, [activeClassId]);
 
-  useEffect(() => { fetchTimetable(); }, [fetchTimetable]);
-
-  // Calculate teacher free periods (free = 42 - assigned periods)
   useEffect(() => {
+    Promise.resolve().then(fetchTimetable);
+  }, [fetchTimetable]);
+
+  const teacherFreeDaysList = useMemo(() => {
     if (!timetable.length || !teachers.length) {
-      setTeacherFreeDaysList([]);
-      setTeacherWithMostFreeDays(null);
-      return;
+      return [];
     }
 
     const totalPossiblePeriods = DAYS.length * PERIODS.length; // 42
@@ -379,13 +372,16 @@ export default function TimetablePage() {
       };
     });
 
-    setTeacherFreeDaysList(freePeriodsData);
-    const maxFree = freePeriodsData.reduce((max, curr) => 
-      curr.freeDays > max.freeDays ? curr : max, 
-      { freeDays: -1, teacherName: "", teacherId: null }
-    );
-    setTeacherWithMostFreeDays(maxFree.freeDays >= 0 ? maxFree : null);
+    return freePeriodsData;
   }, [timetable, teachers]);
+
+  const teacherWithMostFreeDays = useMemo(() => {
+    if (!teacherFreeDaysList.length) return null;
+    return teacherFreeDaysList.reduce((max, curr) =>
+      curr.freeDays > max.freeDays ? curr : max,
+      teacherFreeDaysList[0]
+    );
+  }, [teacherFreeDaysList]);
 
   const activeClass = classes.find(c => c.dbId === activeClassId);
   const classLabel  = activeClass ? `${activeClass.grade}-${activeClass.section}` : "";
@@ -395,7 +391,7 @@ export default function TimetablePage() {
   const uniqueTeachers = [...new Set(timetable.map(e => e.teacher_id))].length;
 
   // Build 2D grid: grid[day][periodNumber] = entry
-  // 🔧 FIX: ensure period_number is converted to number for correct lookup
+  // Ensure period_number is converted to number for correct lookup.
   const grid = useMemo(() => {
     const map = {};
     DAYS.forEach(day => { map[day] = {}; });

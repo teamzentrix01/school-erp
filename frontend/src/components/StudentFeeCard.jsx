@@ -288,7 +288,7 @@ export default function StudentFeeCard() {
         </div>
         <h2 className="font-bold text-gray-900 text-sm">Fee Status</h2>
         <button
-          onClick={() => router.push("/student/fees")}
+          onClick={() => router.push("/students/fees")}
           className="ml-auto flex items-center gap-1 text-xs text-violet-600 font-semibold hover:underline"
         >
           View Details <ChevronRight size={12} />

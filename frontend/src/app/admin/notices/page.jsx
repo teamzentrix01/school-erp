@@ -12,7 +12,7 @@ import {
 // ─────────────────────────────────────────────
 // CONFIG
 // ─────────────────────────────────────────────
-const API_BASE = `${process.env.NEXT_PUBLIC_API_URL}/api/admin`;
+const API_BASE = `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000"}/api/admin`;
 
 const CATEGORIES   = ["All", "General", "Academic", "Exam", "Holiday", "Event", "Urgent"];
 const PRIORITIES   = ["Normal", "Important", "Urgent"];

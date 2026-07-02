@@ -7,11 +7,14 @@ import { BookOpen } from "lucide-react";
 
 export default function StudentHomeworkPage() {
   const today = new Date().toLocaleDateString("en-IN", {
-    weekday: "long", year: "numeric", month: "long", day: "numeric",
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
   });
 
   return (
-    <div className="flex min-h-screen bg-gray-50">
+    <div className="portal-saffron flex min-h-screen bg-gray-50">
       <StudentSidebar />
 
       <main className="flex-1 min-w-0 flex flex-col overflow-hidden">

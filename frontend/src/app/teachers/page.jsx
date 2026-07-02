@@ -1574,7 +1574,7 @@ const [viewingTeacher, setViewingTeacher] = useState(null);
     const token = getToken();
     const headers = { Authorization: `Bearer ${token}` };
     Promise.all([
-      fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/teachers`, { headers }).then((r) => r.json()),
+      fetch(`${API_BASE}/api/admin/teachers`, { headers }).then((r) => r.json()),
       fetch(`${API_BASE}/api/admin/teachers/meta`, { headers }).then((r) => r.json()),
     ])
       .then(([teacherData, metaData]) => {
