@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import StudentSidebar from "@/components/StudentSidebar";
+import PortalTopbar from "@/components/PortalTopbar";
 import StudentFeeCard from "@/components/StudentFeeCard";
 import StudentHomeworkList from "@/components/StudentHomeworkList";
 import { apiFetch, getMediaUrl } from "@/lib/api";
@@ -657,8 +658,9 @@ export default function StudentDashboardPage() {
       <StudentSidebar />
 
       <main className="flex-1 min-w-0 flex flex-col overflow-hidden">
+        <PortalTopbar role="student" onRefresh={fetchData} />
         {/* Top header */}
-        <div className="bg-white border-b border-gray-100 px-4 sm:px-6 py-4 shadow-sm">
+        <div className="hidden bg-white border-b border-gray-100 px-4 sm:px-6 py-4 shadow-sm">
           <div className="pl-10 lg:pl-0 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <div>
               <h1 className="text-xl font-bold text-gray-900">
@@ -687,6 +689,13 @@ export default function StudentDashboardPage() {
         </div>
 
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
+          <div>
+            <h1 className="text-xl font-bold text-gray-900">
+              Welcome back
+              {student?.name ? `, ${student.name.split(" ")[0]}` : ""}!
+            </h1>
+            <p className="text-sm text-gray-400">{today}</p>
+          </div>
           {error && <ErrorCard message={error} onRetry={fetchData} />}
 
           {/* Stat cards */}
