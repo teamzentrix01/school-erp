@@ -339,7 +339,7 @@ if (!aadharFile) e.aadharImage = "Aadhaar card image is required";
     if (form.profilePicture) fd.append("profilePicture", form.profilePicture);
 
     // ── Step 1: Create the teacher ──────────────────────────────────────────
-    const res = await fetch("/api/admin/teachers", {
+    const res = await fetch(`${API_BASE}/api/admin/teachers`, {
       method: "POST",
       headers: { Authorization: `Bearer ${token}` },
       body: fd,
@@ -351,7 +351,7 @@ if (!aadharFile) e.aadharImage = "Aadhaar card image is required";
     if (aadharFile && data.id) {
       const aadharFd = new FormData();
       aadharFd.append("aadhar_image", aadharFile);
-      await fetch(`/api/admin/teachers/${data.id}/aadhar-image`, {
+      await fetch(`${API_BASE}/api/admin/teachers/${data.id}/aadhar-image`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
         body: aadharFd,
@@ -870,7 +870,7 @@ const handleSubmit = async () => {
     }
 
     // ── Step 1: Update teacher ───────────────────────────────────────────
-    const res = await fetch(`/api/admin/teachers/${form.id}`, {
+    const res = await fetch(`${API_BASE}/api/admin/teachers/${form.id}`, {
       method: "PUT",
       headers: { Authorization: `Bearer ${token}` },
       body: fd,
@@ -882,7 +882,7 @@ const handleSubmit = async () => {
     if (aadharFile && form.id) {
       const aadharFd = new FormData();
       aadharFd.append("aadhar_image", aadharFile);
-      await fetch(`/api/admin/teachers/${form.id}/aadhar-image`, {
+      await fetch(`${API_BASE}/api/admin/teachers/${form.id}/aadhar-image`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
         body: aadharFd,
@@ -1673,7 +1673,7 @@ const handleDelete = async (id) => {
     try {
       const teacher = teachers.find(t => t.id === id);
       const dbId = teacher?.dbId;
-      await fetch(`/api/admin/teachers/${dbId}`, {
+      await fetch(`${API_BASE}/api/admin/teachers/${dbId}`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` },
       });

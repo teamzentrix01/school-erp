@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import TeacherSidebar from "@/components/TeacherSidebar";
+import PortalTopbar from "@/components/PortalTopbar";
 import { apiFetch as request } from "@/lib/api";
 import {
   BookOpen,
@@ -295,8 +296,9 @@ export default function TeacherDashboardPage() {
       <TeacherSidebar />
 
       <main className="flex-1 min-w-0 flex flex-col overflow-hidden">
+        <PortalTopbar role="teacher" onRefresh={load} />
         {/* Header */}
-        <div className="bg-white border-b border-gray-100 px-4 sm:px-6 py-4 shadow-sm">
+        <div className="hidden bg-white border-b border-gray-100 px-4 sm:px-6 py-4 shadow-sm">
           <div className="pl-10 lg:pl-0 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <div>
               <h1 className="text-xl font-bold text-gray-900">
@@ -328,6 +330,13 @@ export default function TeacherDashboardPage() {
         </div>
 
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
+          <div>
+            <h1 className="text-xl font-bold text-gray-900">
+              Welcome back
+              {profile?.name ? `, ${profile.name.split(" ")[0]}` : ""}!
+            </h1>
+            <p className="text-sm text-gray-400">{dateStr}</p>
+          </div>
           {error && (
             <div className="bg-red-50 border border-red-200 text-red-600 text-sm px-4 py-3 rounded-xl flex items-center justify-between">
               {error}

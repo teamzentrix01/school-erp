@@ -4,10 +4,16 @@ const crypto = require("crypto");
 const path = require("path");
 const fs = require("fs");
 
-const razorpay = new Razorpay({
-  key_id: process.env.RAZORPAY_KEY_ID,
-  key_secret: process.env.RAZORPAY_KEY_SECRET,
-});
+const isRazorpayConfigured = () =>
+  Boolean(process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET);
+
+const getRazorpayClient = () => {
+  if (!isRazorpayConfigured()) return null;
+  return new Razorpay({
+    key_id: process.env.RAZORPAY_KEY_ID,
+    key_secret: process.env.RAZORPAY_KEY_SECRET,
+  });
+};
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const getStudentFeeRecord = async (userId) => {
@@ -57,6 +63,13 @@ const getStudentFees = async (req, res) => {
 // ── POST /api/fees/payment/create-order ───────────────────────────────────────
 const createOrder = async (req, res) => {
   try {
+    const razorpay = getRazorpayClient();
+    if (!razorpay) {
+      return res.status(503).json({
+        message: "Online payment gateway is not configured. Please contact admin.",
+      });
+    }
+
     const { amount } = req.body;
     if (!amount || amount <= 0)
       return res.status(400).json({ message: "Invalid amount" });
@@ -106,6 +119,12 @@ const createOrder = async (req, res) => {
 // ── POST /api/fees/payment/verify ─────────────────────────────────────────────
 const verifyPayment = async (req, res) => {
   try {
+    if (!isRazorpayConfigured()) {
+      return res.status(503).json({
+        message: "Online payment gateway is not configured. Please contact admin.",
+      });
+    }
+
     const { razorpay_order_id, razorpay_payment_id, razorpay_signature } =
       req.body;
 

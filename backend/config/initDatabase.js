@@ -113,7 +113,7 @@ async function initDatabase() {
     DO $$
     BEGIN
       IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='hostels' AND column_name='type') THEN
-        EXECUTE 'UPDATE hostels SET hostel_type = COALESCE(hostel_type, "type", ''Boys'')';
+        EXECUTE 'UPDATE hostels SET hostel_type = COALESCE(hostel_type, type, ''Boys'')';
       END IF;
       IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='hostels' AND column_name='location') THEN
         EXECUTE 'UPDATE hostels SET address = COALESCE(address, location)';
@@ -201,6 +201,29 @@ async function initDatabase() {
     ALTER TABLE hostel_complaints ADD COLUMN IF NOT EXISTS assigned_to VARCHAR(120);
     ALTER TABLE hostel_complaints ADD COLUMN IF NOT EXISTS resolved_at TIMESTAMP;
     ALTER TABLE hostel_complaints ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT NOW();
+    DO $$
+    BEGIN
+      IF EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_name='hostel_complaints'
+          AND column_name='student_id'
+          AND data_type <> 'integer'
+      ) THEN
+        EXECUTE 'ALTER TABLE hostel_complaints ALTER COLUMN student_id TYPE INTEGER USING NULLIF(student_id, '''')::integer';
+      END IF;
+
+      IF EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_name='hostel_leave_requests'
+          AND column_name='student_id'
+          AND data_type <> 'integer'
+      ) THEN
+        EXECUTE 'ALTER TABLE hostel_leave_requests ALTER COLUMN student_id TYPE INTEGER USING NULLIF(student_id, '''')::integer';
+      END IF;
+    END $$;
+    ALTER TABLE students ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE;
 
     CREATE TABLE IF NOT EXISTS library_books (
       id SERIAL PRIMARY KEY,

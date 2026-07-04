@@ -2,15 +2,14 @@
 
 import { useEffect, useState, useCallback } from "react";
 import Sidebar from "@/components/Sidebar";
-import { apiFetch, getUser, logout } from "@/lib/api";
+import PortalTopbar from "@/components/PortalTopbar";
+import { apiFetch, getUser } from "@/lib/api";
 import {
   Users,
   TrendingUp,
   BookOpen,
   CalendarCheck,
   Bell,
-  Search,
-  ChevronDown,
   GraduationCap,
   AlertTriangle,
   Info,
@@ -20,7 +19,6 @@ import {
   CreditCard,
   ClipboardList,
   Megaphone,
-  RefreshCw,
   ArrowUp,
   ArrowDown,
 } from "lucide-react";
@@ -41,14 +39,6 @@ import {
 } from "recharts";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-function getInitials(name = "") {
-  return name
-    .split(" ")
-    .map((w) => w[0])
-    .join("")
-    .slice(0, 2)
-    .toUpperCase();
-}
 function getGreeting() {
   const h = new Date().getHours();
   if (h < 12) return "Good morning";
@@ -469,45 +459,7 @@ export default function DashboardPage() {
       <Sidebar />
 
       <main className="flex-1 min-w-0 flex flex-col">
-        {/* Top bar */}
-        <header className="sticky top-0 z-30 bg-orange-50/90 backdrop-blur border-b border-orange-100 flex items-center justify-between gap-4 px-6 py-3.5 shadow-sm">
-          <div className="flex items-center gap-2 bg-gray-100 rounded-xl px-3 py-2 w-64 max-w-full ml-10 lg:ml-0">
-            <Search size={15} className="text-gray-400 shrink-0" />
-            <input
-              type="text"
-              placeholder="Search students, classes…"
-              className="bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none w-full"
-            />
-          </div>
-
-          <div className="flex items-center gap-3">
-            <button
-              onClick={fetchAll}
-              className="p-2 rounded-xl text-gray-400 hover:bg-gray-100 transition-colors"
-              title="Refresh"
-            >
-              <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
-            </button>
-            <button className="relative p-2 rounded-xl text-gray-500 hover:bg-gray-100 transition-colors">
-              <Bell size={18} />
-              {alerts.length > 0 && (
-                <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full ring-1 ring-white" />
-              )}
-            </button>
-            <button
-              onClick={logout}
-              className="flex items-center gap-2 pl-1 pr-2 py-1 rounded-xl hover:bg-gray-100 transition-colors"
-            >
-              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-orange-500 to-orange-700 flex items-center justify-center text-white text-xs font-bold">
-                {getInitials(user?.name || "Admin")}
-              </div>
-              <span className="hidden sm:block text-sm font-medium text-gray-700">
-                {user?.name || "Admin"}
-              </span>
-              <ChevronDown size={14} className="text-gray-400" />
-            </button>
-          </div>
-        </header>
+        <PortalTopbar role="admin" onRefresh={fetchAll} />
 
         <div className="flex-1 p-6 lg:p-8 space-y-6">
           {/* Greeting */}
