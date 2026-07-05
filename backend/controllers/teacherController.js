@@ -49,6 +49,16 @@ const AVATAR_COLORS = [
 const getSubjectColors = (subject) =>
   SUBJECT_COLORS[subject] ?? { bg: "bg-gray-100", text: "text-gray-700" };
 
+const normalizePhone = (value) => String(value || "").replace(/\D/g, "");
+
+const validatePhone = (value, label = "Phone") => {
+  const phone = normalizePhone(value);
+  if (!/^\d{10}$/.test(phone)) {
+    return { error: `${label} must be exactly 10 digits` };
+  }
+  return { phone };
+};
+
 // ── Admin: GET /api/admin/teachers ───────────────────────────────────────────
 
 // UPDATE getAllTeachers function - Fix the teacher_id reference
@@ -183,6 +193,11 @@ const createTeacher = async (req, res) => {
 
   const client = await pool.connect();
   try {
+    const phoneCheck = validatePhone(phone);
+    if (phoneCheck.error) {
+      return res.status(400).json({ message: phoneCheck.error });
+    }
+
     await client.query("BEGIN");
 
     // Create user
@@ -197,7 +212,13 @@ const createTeacher = async (req, res) => {
     const teacherResult = await client.query(
       `INSERT INTO teachers (user_id, phone, teacher_type, status, aadhar_number)
         VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-      [userId, phone, teacherType, status || "Active", aadhar_number || null],
+      [
+        userId,
+        phoneCheck.phone,
+        teacherType,
+        status || "Active",
+        aadhar_number || null,
+      ],
     );
     const teacherId = teacherResult.rows[0].id;
 
@@ -307,6 +328,15 @@ const updateTeacher = async (req, res) => {
 
   const client = await pool.connect();
   try {
+    let cleanPhone = phone;
+    if (phone != null && phone !== "") {
+      const phoneCheck = validatePhone(phone);
+      if (phoneCheck.error) {
+        return res.status(400).json({ message: phoneCheck.error });
+      }
+      cleanPhone = phoneCheck.phone;
+    }
+
     await client.query("BEGIN");
 
     // Get current teacher info
@@ -340,7 +370,7 @@ const updateTeacher = async (req, res) => {
        aadhar_number = COALESCE($4, aadhar_number),
        updated_at    = NOW()
      WHERE id = $5`,
-      [phone, teacherType, status, aadhar_number || null, id],
+      [cleanPhone, teacherType, status, aadhar_number || null, id],
     );
 
     // Handle class teacher assignment
@@ -499,7 +529,30 @@ const deleteTeacher = async (req, res) => {
 const getProfile = async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT t.*, u.name, u.email
+      `SELECT t.*, u.name, u.email,
+              (
+                SELECT json_build_object(
+                  'id', c.id,
+                  'class_name', c.class_name,
+                  'grade', c.grade,
+                  'section', c.section
+                )
+                FROM classes c
+                WHERE c.teacher_id = t.id
+                LIMIT 1
+              ) AS "classTeacherAssignment",
+              (
+                SELECT COALESCE(json_agg(
+                  json_build_object(
+                    'subject', ts.subject,
+                    'className', ts.class_name,
+                    'section', ts.section
+                  )
+                  ORDER BY ts.class_name, ts.section, ts.subject
+                ), '[]'::json)
+                FROM teacher_subjects ts
+                WHERE ts.teacher_id = t.id
+              ) AS "subjectAssignments"
        FROM teachers t
        JOIN users u ON t.user_id = u.id
        WHERE t.user_id = $1`,

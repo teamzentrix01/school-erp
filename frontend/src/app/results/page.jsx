@@ -170,6 +170,8 @@ function ExamModal({ classes, onClose, onSaved }) {
             Start date
             <input
               type="date"
+              min="1900-01-01"
+              max="2100-12-31"
               className={`${inputClass} mt-1.5`}
               value={form.start_date}
               onChange={(e) => set("start_date", e.target.value)}
@@ -179,6 +181,8 @@ function ExamModal({ classes, onClose, onSaved }) {
             End date
             <input
               type="date"
+              min="1900-01-01"
+              max="2100-12-31"
               className={`${inputClass} mt-1.5`}
               value={form.end_date}
               onChange={(e) => set("end_date", e.target.value)}

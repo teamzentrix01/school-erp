@@ -167,6 +167,8 @@ const EMPTY_FORM = {
   status: "Active",
 };
 
+const cleanPhone = (value) => String(value || "").replace(/\D/g, "").slice(0, 10);
+
 function SubjectAssignmentRow({
   idx,
   assignment,
@@ -295,7 +297,7 @@ const handleAadhar = (e) => {
     if (!form.name.trim()) e.name = "Name is required";
     if (!form.email.trim()) e.email = "Email is required";
     if (!form.password.trim()) e.password = "Password is required";
-    if (!form.phone.trim()) e.phone = "Phone is required";
+    if (!/^\d{10}$/.test(cleanPhone(form.phone))) e.phone = "Phone must be exactly 10 digits";
     if (!form.aadharNumber?.trim()) e.aadharNumber = "Aadhaar number is required";
 else if (!/^\d{12}$/.test(form.aadharNumber.replace(/\s/g, "")))
   e.aadharNumber = "Must be exactly 12 digits";
@@ -459,7 +461,9 @@ if (!aadharFile) e.aadharImage = "Aadhaar card image is required";
               </label>
               <input
                 value={form.phone}
-                onChange={(e) => set("phone", e.target.value)}
+                onChange={(e) => set("phone", cleanPhone(e.target.value))}
+                inputMode="numeric"
+                maxLength={10}
                 placeholder="+91 98765 43210"
                 type="tel"
                 className={`w-full h-10 px-3 rounded-xl border text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-400/30 focus:border-blue-400 transition-all ${errors.phone ? "border-red-300 bg-red-50" : "border-gray-200 bg-white"}`}
@@ -815,7 +819,7 @@ function EditTeacherModal({ teacher, onClose, onSaved, subjectsList, classesMeta
   const e = {};
   if (!form.name.trim()) e.name = "Name is required";
   if (!form.email.trim()) e.email = "Email is required";
-  if (!form.phone.trim()) e.phone = "Phone is required";
+  if (!/^\d{10}$/.test(cleanPhone(form.phone))) e.phone = "Phone must be exactly 10 digits";
   if (
     (form.teacherType === "Class Teacher" || form.teacherType === "Both") &&
     (!form.classTeacherClass || !form.classTeacherSection)
@@ -942,7 +946,7 @@ const handleSubmit = async () => {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">Phone Number <span className="text-red-500">*</span></label>
-              <input value={form.phone} onChange={e => set("phone", e.target.value)} type="tel" className={`w-full h-10 px-3 rounded-xl border text-sm ${errors.phone ? "border-red-300 bg-red-50" : "border-gray-200"}`} />
+              <input value={form.phone} onChange={e => set("phone", cleanPhone(e.target.value))} type="tel" inputMode="numeric" maxLength={10} className={`w-full h-10 px-3 rounded-xl border text-sm ${errors.phone ? "border-red-300 bg-red-50" : "border-gray-200"}`} />
               {errors.phone && <p className="text-xs text-red-500 mt-1">{errors.phone}</p>}
             </div>
           </div>

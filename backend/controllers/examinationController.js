@@ -3,6 +3,15 @@ const path = require("path");
 const crypto = require("crypto");
 const pool = require("../config/db");
 
+const isValidDateString = (value) => {
+  if (!value) return true;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const year = Number(value.slice(0, 4));
+  if (year < 1900 || year > 2100) return false;
+  const parsed = new Date(`${value}T00:00:00.000Z`);
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
+};
+
 const getExaminationAdmin = async (_req, res) => {
   try {
     const [exams, schedule, papers, cards] = await Promise.all([
@@ -52,6 +61,11 @@ const saveSchedule = async (req, res) => {
     return res.status(400).json({
       message: "Exam, subject, date, start time, and end time are required",
     });
+  }
+  if (!isValidDateString(exam_date)) {
+    return res
+      .status(400)
+      .json({ message: "Exam date must be a valid YYYY-MM-DD date" });
   }
   if (start_time >= end_time) {
     return res
@@ -208,12 +222,20 @@ const generateAdmitCards = async (req, res) => {
     let sectionFilter = "";
     if (exam.rows[0].section) {
       params.push(exam.rows[0].section);
-      sectionFilter = ` AND LOWER(TRIM(section))=LOWER(TRIM($${params.length}))`;
+      sectionFilter = ` AND LOWER(TRIM(s.section))=LOWER(TRIM($${params.length}))`;
     }
     const students = await client.query(
-      `SELECT id FROM students
-       WHERE LOWER(TRIM(class))=LOWER(TRIM($1)) ${sectionFilter}
-         AND COALESCE(is_active,TRUE)=TRUE`,
+      `SELECT s.id
+       FROM students s
+       LEFT JOIN classes c ON c.id=s.class_id
+       WHERE (
+         LOWER(TRIM(s.class))=LOWER(TRIM($1))
+         OR LOWER(TRIM(c.grade))=LOWER(TRIM($1))
+         OR LOWER(TRIM(c.class_name))=LOWER(TRIM($1))
+         OR LOWER(TRIM(c.class_name))=LOWER(TRIM(CONCAT('Class ', $1)))
+       )
+       ${sectionFilter}
+         AND COALESCE(s.is_active,TRUE)=TRUE`,
       params,
     );
     let generated = 0;
@@ -290,7 +312,10 @@ const getAdmitCards = async (req, res) => {
 const getStudentExaminations = async (req, res) => {
   try {
     const studentResult = await pool.query(
-      `SELECT s.*,u.name FROM students s JOIN users u ON u.id=s.user_id
+      `SELECT s.*,u.name,c.grade,c.class_name
+       FROM students s
+       JOIN users u ON u.id=s.user_id
+       LEFT JOIN classes c ON c.id=s.class_id
        WHERE s.user_id=$1`,
       [req.user.id],
     );
@@ -298,26 +323,41 @@ const getStudentExaminations = async (req, res) => {
       return res.status(404).json({ message: "Student not found" });
     }
     const student = studentResult.rows[0];
+    const classMatchSql = `(
+      LOWER(TRIM(e.class))=LOWER(TRIM($1))
+      OR LOWER(TRIM(e.class))=LOWER(TRIM($3))
+      OR LOWER(TRIM(e.class))=LOWER(TRIM($4))
+      OR LOWER(TRIM(e.class))=LOWER(TRIM(CONCAT('Class ', $1)))
+    )`;
+    const examParams = [
+      student.class || "",
+      student.section || "",
+      student.grade || "",
+      student.class_name || "",
+    ];
+
     const [schedule, papers, cards] = await Promise.all([
       pool.query(
         `SELECT es.*,e.name AS exam_name,e.academic_year
-         FROM exam_schedule es JOIN exams e ON e.id=es.exam_id
-         WHERE LOWER(TRIM(e.class))=LOWER(TRIM($1))
+         FROM exam_schedule es
+         JOIN exams e ON e.id=es.exam_id
+         LEFT JOIN classes c ON c.id=$5
+         WHERE ${classMatchSql}
            AND (e.section IS NULL OR LOWER(TRIM(e.section))=LOWER(TRIM($2)))
            AND es.published=TRUE
          ORDER BY es.exam_date,es.start_time`,
-        [student.class, student.section],
+        [...examParams, student.class_id || null],
       ),
       pool.query(
         `SELECT qp.id,qp.exam_id,qp.subject,qp.title,qp.file_url,qp.release_at,
                 e.name AS exam_name
          FROM question_papers qp JOIN exams e ON e.id=qp.exam_id
-         WHERE LOWER(TRIM(e.class))=LOWER(TRIM($1))
+         WHERE ${classMatchSql}
            AND (e.section IS NULL OR LOWER(TRIM(e.section))=LOWER(TRIM($2)))
            AND qp.access_status='Published'
            AND (qp.release_at IS NULL OR qp.release_at<=NOW())
          ORDER BY qp.created_at DESC`,
-        [student.class, student.section],
+        examParams,
       ),
       pool.query(
         `SELECT ac.*,e.name AS exam_name,e.exam_type,e.academic_year,

@@ -503,6 +503,8 @@ function ScheduleModal({ exams, initial, onClose, onSave }) {
               {label}
               <input
                 type={type}
+                min={type === "date" ? "1900-01-01" : undefined}
+                max={type === "date" ? "2100-12-31" : undefined}
                 value={form[key] ?? ""}
                 onChange={(event) => set(key, event.target.value)}
                 className="mt-1 w-full rounded-lg border border-orange-200 px-3 py-2.5 text-sm"

@@ -473,6 +473,15 @@ const EMPTY_FORM = {
   aadharImageUrl: "",
 };
 
+const cleanPhone = (value) => String(value || "").replace(/\D/g, "").slice(0, 10);
+
+const isValidDateValue = (value) => {
+  if (!value) return true;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const year = Number(value.slice(0, 4));
+  return year >= 1900 && year <= 2100;
+};
+
 function AddEditModal({ student, classMeta, onClose, onSave, saving }) {
   const isEdit = !!student;
 
@@ -574,6 +583,11 @@ function AddEditModal({ student, classMeta, onClose, onSave, saving }) {
     if (!form.classId) return alert("Please select a class.");
     if (!isEdit && !form.email.trim()) return alert("Email is required.");
     if (!isEdit && !form.password.trim()) return alert("Password is required.");
+    if (!isValidDateValue(form.dob)) return alert("Date of birth must use a valid 4-digit year.");
+    if (form.phone && !/^\d{10}$/.test(cleanPhone(form.phone)))
+      return alert("Student phone must be exactly 10 digits.");
+    if (form.parentContact && !/^\d{10}$/.test(cleanPhone(form.parentContact)))
+      return alert("Parent contact must be exactly 10 digits.");
     if (!form.aadharNumber.trim())
       return alert("Aadhaar card number is required.");
     if (!/^\d{12}$/.test(form.aadharNumber.replace(/\s/g, "")))
@@ -756,12 +770,16 @@ function AddEditModal({ student, classMeta, onClose, onSave, saving }) {
           value={form.dob}
           onChange={(v) => set("dob", v)}
           type="date"
+          min="1900-01-01"
+          max="2100-12-31"
         />
         <Field
           label="Phone"
           value={form.phone}
-          onChange={(v) => set("phone", v)}
+          onChange={(v) => set("phone", cleanPhone(v))}
           placeholder="10-digit number"
+          inputMode="numeric"
+          maxLength={10}
         />
         <Field
           label="Parent Name"
@@ -772,8 +790,10 @@ function AddEditModal({ student, classMeta, onClose, onSave, saving }) {
         <Field
           label="Parent Contact"
           value={form.parentContact}
-          onChange={(v) => set("parentContact", v)}
+          onChange={(v) => set("parentContact", cleanPhone(v))}
           placeholder="10-digit number"
+          inputMode="numeric"
+          maxLength={10}
         />
 
         {/* Aadhaar Number */}
@@ -950,6 +970,10 @@ function Field({
   placeholder,
   type = "text",
   disabled = false,
+  min,
+  max,
+  maxLength,
+  inputMode,
 }) {
   return (
     <div>
@@ -960,6 +984,10 @@ function Field({
         onChange={(e) => onChange && onChange(e.target.value)}
         placeholder={placeholder}
         disabled={disabled}
+        min={min}
+        max={max}
+        maxLength={maxLength}
+        inputMode={inputMode}
         className={`field-input ${disabled ? "bg-gray-50 text-gray-400 cursor-not-allowed" : ""}`}
       />
     </div>

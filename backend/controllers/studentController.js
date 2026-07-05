@@ -157,10 +157,6 @@ const getTimetable = async (req, res) => {
 
     const { class_id, class: cls, section } = student.rows[0];
 
-    if (!class_id) {
-      return res.json([]); // class_id nahi hai toh empty
-    }
-
     const result = await pool.query(
       `SELECT 
      tt.id,
@@ -183,7 +179,15 @@ const getTimetable = async (req, res) => {
    FROM timetable tt
    JOIN teachers t ON tt.teacher_id = t.id
    JOIN users u ON t.user_id = u.id
-   WHERE tt.class_id = $1
+   LEFT JOIN classes c ON c.id = tt.class_id
+   WHERE (
+     ($1::int IS NOT NULL AND tt.class_id = $1)
+     OR (
+       $1::int IS NULL
+       AND (c.grade = $2 OR c.class_name = $2 OR c.class_name = CONCAT('Class ', $2))
+       AND c.section = $3
+     )
+   )
    ORDER BY 
      CASE tt.day_of_week
        WHEN 'Monday'    THEN 1
@@ -194,7 +198,7 @@ const getTimetable = async (req, res) => {
        WHEN 'Saturday'  THEN 6
      END,
      tt.start_time`,
-      [class_id],
+      [class_id || null, cls, section],
     );
     res.json(result.rows);
   } catch (err) {

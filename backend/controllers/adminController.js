@@ -87,6 +87,22 @@ async function generateStudentId() {
   return `${prefix}${String(seq).padStart(4, "0")}`;
 }
 
+const normalizePhone = (value) => String(value || "").replace(/\D/g, "");
+
+const isValidOptionalPhone = (value) =>
+  !value || /^\d{10}$/.test(normalizePhone(value));
+
+const normalizeOptionalPhone = (value) => (value ? normalizePhone(value) : null);
+
+const isValidDateString = (value) => {
+  if (!value) return true;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const year = Number(value.slice(0, 4));
+  if (year < 1900 || year > 2100) return false;
+  const parsed = new Date(`${value}T00:00:00.000Z`);
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
+};
+
 // ── GET /api/admin/students ───────────────────────────────────────────────────
 const getAllStudents = async (req, res) => {
   try {
@@ -148,6 +164,21 @@ const createStudent = async (req, res) => {
       message: "name, email, password, roll_number, and class_id are required",
     });
   }
+  if (!isValidDateString(date_of_birth)) {
+    return res
+      .status(400)
+      .json({ message: "Date of birth must be a valid YYYY-MM-DD date" });
+  }
+  if (!isValidOptionalPhone(phone)) {
+    return res
+      .status(400)
+      .json({ message: "Student phone must be exactly 10 digits" });
+  }
+  if (!isValidOptionalPhone(guardian_phone)) {
+    return res
+      .status(400)
+      .json({ message: "Guardian phone must be exactly 10 digits" });
+  }
 
   const client = await pool.connect();
   try {
@@ -185,9 +216,9 @@ const createStudent = async (req, res) => {
     date_of_birth || null,// $8
     gender,               // $9
     address,              // $10
-    phone,                // $11
+    normalizeOptionalPhone(phone), // $11
     guardian_name,        // $12
-    guardian_phone,       // $13
+    normalizeOptionalPhone(guardian_phone), // $13
     // 'Pending' is inline in SQL ↑ — no $14 for it
     aadhar_number || null,// $14 ← now correctly hits aadhar_number column
   ]
@@ -237,6 +268,16 @@ const updateStudent = async (req, res) => {
   } = req.body;
 
   try {
+    if (!isValidOptionalPhone(phone)) {
+      return res
+        .status(400)
+        .json({ message: "Student phone must be exactly 10 digits" });
+    }
+    if (!isValidOptionalPhone(guardian_phone)) {
+      return res
+        .status(400)
+        .json({ message: "Guardian phone must be exactly 10 digits" });
+    }
     const result = await pool.query(
       `UPDATE students SET
          class_id       = COALESCE($1, class_id),
@@ -256,10 +297,10 @@ const updateStudent = async (req, res) => {
         className,
         section,
         class_teacher,
-        phone,
+        normalizeOptionalPhone(phone),
         address,
         guardian_name,   // ← $7 ✓
-        guardian_phone,  // ← $8 ✓
+        normalizeOptionalPhone(guardian_phone),
         aadhar_number,   // ← $9 ✓
         id,              // ← $10 ✓
         // fee_status is GONE — no $11

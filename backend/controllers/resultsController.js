@@ -12,6 +12,15 @@ const gradeFor = (marks, total) => {
   return "F";
 };
 
+const isValidDateString = (value) => {
+  if (!value) return true;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const year = Number(value.slice(0, 4));
+  if (year < 1900 || year > 2100) return false;
+  const parsed = new Date(`${value}T00:00:00.000Z`);
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
+};
+
 const parseCsvLine = (line) => {
   const values = [];
   let current = "";
@@ -391,6 +400,12 @@ const createExam = async (req, res) => {
       .status(400)
       .json({ message: "Name, type, academic year, and class are required" });
   }
+  if (!isValidDateString(start_date) || !isValidDateString(end_date)) {
+    return res.status(400).json({ message: "Exam dates must be valid YYYY-MM-DD dates" });
+  }
+  if (start_date && end_date && start_date > end_date) {
+    return res.status(400).json({ message: "Exam end date must be after start date" });
+  }
   try {
     const result = await pool.query(
       `INSERT INTO exams
@@ -430,6 +445,12 @@ const updateExam = async (req, res) => {
     status,
   } = req.body;
   try {
+    if (!isValidDateString(start_date) || !isValidDateString(end_date)) {
+      return res.status(400).json({ message: "Exam dates must be valid YYYY-MM-DD dates" });
+    }
+    if (start_date && end_date && start_date > end_date) {
+      return res.status(400).json({ message: "Exam end date must be after start date" });
+    }
     const result = await pool.query(
       `UPDATE exams SET
          name = COALESCE($1, name), exam_type = COALESCE($2, exam_type),
