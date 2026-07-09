@@ -37,6 +37,10 @@ function avatarColor(name = "") {
   return AVATAR_COLORS[h];
 }
 
+function normalizeClassName(value = "") {
+  return String(value).replace(/^Class\s+/i, "").trim();
+}
+
 // ─── Normalize DB row → UI shape ──────────────────────────────────────────────
 function normalizeStudent(s) {
   return {
@@ -46,7 +50,7 @@ function normalizeStudent(s) {
     name: s.name || "",
     email: s.email || "",
     roll: s.roll_number || "",
-    class: (s.class || "").replace(/^Class\s+/i, "").trim(),
+    class: normalizeClassName(s.class),
     section: s.section || "",
     classTeacher: s.class_teacher || "",
     gender: s.gender || "",
@@ -1192,7 +1196,12 @@ export default function StudentsPage() {
         api.meta().catch(() => []),
       ]);
       setStudents((studentsData || []).map(normalizeStudent));
-      setClassMeta(metaData || []);
+      setClassMeta(
+        (metaData || []).map((classItem) => ({
+          ...classItem,
+          class_name: normalizeClassName(classItem.class_name),
+        })),
+      );
     } catch (err) {
       console.error("Fetch error:", err);
       setFetchError("Failed to load students. Please refresh.");
@@ -1432,7 +1441,7 @@ export default function StudentsPage() {
   const withParent = students.filter((s) => s.parentName).length;
 
   return (
-    <div className="flex min-h-screen bg-gray-50">
+    <div className="flex h-screen overflow-hidden bg-gray-50">
       <Sidebar />
 
       <main className="flex-1 min-w-0 flex flex-col overflow-hidden">

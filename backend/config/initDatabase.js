@@ -402,6 +402,55 @@ async function initDatabase() {
       created_at TIMESTAMP NOT NULL DEFAULT NOW()
     );
 
+    CREATE TABLE IF NOT EXISTS timetable (
+      id SERIAL PRIMARY KEY,
+      class_id INTEGER NOT NULL REFERENCES classes(id) ON DELETE CASCADE,
+      teacher_id INTEGER NOT NULL REFERENCES teachers(id) ON DELETE CASCADE,
+      subject VARCHAR(120) NOT NULL,
+      day_of_week VARCHAR(20) NOT NULL,
+      start_time TIME,
+      end_time TIME,
+      created_at TIMESTAMP NOT NULL DEFAULT NOW()
+    );
+
+    ALTER TABLE timetable ADD COLUMN IF NOT EXISTS period_number INTEGER;
+
+    CREATE TABLE IF NOT EXISTS timetable_settings (
+      id INTEGER PRIMARY KEY DEFAULT 1,
+      working_days JSONB NOT NULL DEFAULT '["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"]'::jsonb,
+      periods JSONB NOT NULL DEFAULT '[
+        {"number":1,"label":"P1","start":"08:00","end":"08:45","type":"class"},
+        {"number":2,"label":"P2","start":"08:50","end":"09:35","type":"class"},
+        {"number":3,"label":"P3","start":"09:40","end":"10:25","type":"class"},
+        {"number":4,"label":"P4","start":"10:45","end":"11:30","type":"class"},
+        {"number":5,"label":"P5","start":"11:35","end":"12:20","type":"class"},
+        {"number":6,"label":"P6","start":"12:25","end":"13:10","type":"class"},
+        {"number":7,"label":"P7","start":"13:15","end":"14:00","type":"class"}
+      ]'::jsonb,
+      updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+    );
+
+    INSERT INTO timetable_settings (id)
+    VALUES (1)
+    ON CONFLICT (id) DO NOTHING;
+
+    CREATE TABLE IF NOT EXISTS timetable_events (
+      id SERIAL PRIMARY KEY,
+      title VARCHAR(180) NOT NULL,
+      event_type VARCHAR(40) NOT NULL DEFAULT 'Event',
+      scope VARCHAR(20) NOT NULL DEFAULT 'monthly',
+      class_id INTEGER REFERENCES classes(id) ON DELETE CASCADE,
+      event_date DATE,
+      start_date DATE,
+      end_date DATE,
+      description TEXT,
+      color VARCHAR(40) DEFAULT 'blue',
+      created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+    );
+
     CREATE TABLE IF NOT EXISTS smart_attendance_events (
       id SERIAL PRIMARY KEY,
       session_id INTEGER REFERENCES smart_attendance_sessions(id) ON DELETE SET NULL,

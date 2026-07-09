@@ -6,11 +6,15 @@ import { usePathname } from "next/navigation";
 export default function SidebarItem({ icon: Icon, label, href, collapsed, onClick }) {
   const pathname = usePathname();
   const isActive = pathname === href;
+  const handleClick = () => {
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+    onClick?.();
+  };
 
   return (
     <Link
       href={href}
-      onClick={onClick}
+      onClick={handleClick}
       title={collapsed ? label : undefined}
       className={`
         group flex items-center gap-3 px-3 py-2.5 rounded-xl
