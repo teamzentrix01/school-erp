@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
   Users,
@@ -77,6 +78,8 @@ const NAV_SECTIONS = [
 export default function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const pathname = usePathname();
+  const navRef = useRef(null);
 
   // Close mobile sidebar on resize to desktop
   useEffect(() => {
@@ -96,6 +99,21 @@ export default function Sidebar() {
   }, [mobileOpen]);
 
   const closeMobile = () => setMobileOpen(false);
+
+  useEffect(() => {
+    const savedScroll = sessionStorage.getItem("admin-sidebar-scroll");
+    if (!savedScroll || !navRef.current) return;
+    requestAnimationFrame(() => {
+      if (navRef.current) navRef.current.scrollTop = Number(savedScroll) || 0;
+    });
+  }, [pathname]);
+
+  const handleNavClick = () => {
+    if (navRef.current) {
+      sessionStorage.setItem("admin-sidebar-scroll", String(navRef.current.scrollTop));
+    }
+    closeMobile();
+  };
 
   const handleLogout = () => {
     localStorage.removeItem("token"); // remove JWT
@@ -220,6 +238,7 @@ export default function Sidebar() {
 
         {/* ── Nav sections (scrollable) ── */}
         <nav
+          ref={navRef}
           className="flex-1 overflow-y-auto overflow-x-hidden py-4 px-3
                         scrollbar-thin scrollbar-track-transparent scrollbar-thumb-white/20
                         space-y-1"
@@ -240,7 +259,7 @@ export default function Sidebar() {
                     key={item.href}
                     {...item}
                     collapsed={collapsed}
-                    onClick={closeMobile}
+                    onClick={handleNavClick}
                   />
                 ))}
               </div>
