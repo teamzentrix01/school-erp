@@ -1,4 +1,10 @@
 const pool = require("../config/db");
+
+const currentAcademicYear = () => {
+  const now = new Date();
+  const start = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
+  return `${start}-${String(start + 1).slice(-2)}`;
+};
 const Razorpay = require("razorpay");
 const crypto = require("crypto");
 const path = require("path");
@@ -66,7 +72,8 @@ const createOrder = async (req, res) => {
     const razorpay = getRazorpayClient();
     if (!razorpay) {
       return res.status(503).json({
-        message: "Online payment gateway is not configured. Please contact admin.",
+        message:
+          "Online payment gateway is not configured. Please contact admin.",
       });
     }
 
@@ -121,7 +128,8 @@ const verifyPayment = async (req, res) => {
   try {
     if (!isRazorpayConfigured()) {
       return res.status(503).json({
-        message: "Online payment gateway is not configured. Please contact admin.",
+        message:
+          "Online payment gateway is not configured. Please contact admin.",
       });
     }
 
@@ -521,27 +529,38 @@ const setFeeStructure = async (req, res) => {
     // ← total pehle define karo
     const total =
       Number(tuition_fee) + Number(library_fee || 0) + Number(other_fee || 0);
-    await client.query(
-      `INSERT INTO fee_structures 
-     (class, section, academic_year, tuition_fee, library_fee, other_fee, due_date)
-   VALUES ($1::varchar, $2::varchar, $3::varchar, $4::numeric, $5::numeric, $6::numeric, $7::date)
-   ON CONFLICT (class, section, academic_year)
-   DO UPDATE SET 
-     tuition_fee = EXCLUDED.tuition_fee,
-     library_fee = EXCLUDED.library_fee,
-     other_fee   = EXCLUDED.other_fee,
-     due_date    = EXCLUDED.due_date,
-     updated_at  = NOW()`,
-      [
-        cls,
-        section || null,
-        academic_year || "2024-25",
-        tuition_fee,
-        library_fee || 0,
-        other_fee || 0,
-        due_date || null,
-      ],
+    const ay = academic_year || currentAcademicYear();
+    const feeValues = [
+      cls,
+      section || null,
+      ay,
+      tuition_fee,
+      library_fee || 0,
+      other_fee || 0,
+      due_date || null,
+    ];
+    const existingStructure = await client.query(
+      `SELECT id FROM fee_structures
+       WHERE class = $1 AND academic_year = $3
+         AND section IS NOT DISTINCT FROM $2::varchar
+       FOR UPDATE`,
+      feeValues.slice(0, 3),
     );
+    if (existingStructure.rows.length) {
+      await client.query(
+        `UPDATE fee_structures SET tuition_fee=$4, library_fee=$5,
+           other_fee=$6, due_date=$7, updated_at=NOW()
+         WHERE id=$8`,
+        [...feeValues, existingStructure.rows[0].id],
+      );
+    } else {
+      await client.query(
+        `INSERT INTO fee_structures
+           (class, section, academic_year, tuition_fee, library_fee, other_fee, due_date)
+         VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+        feeValues,
+      );
+    }
 
     let studentQuery = "SELECT id FROM students WHERE class = $1";
     const params = [cls];
@@ -553,8 +572,6 @@ const setFeeStructure = async (req, res) => {
 
     // student_fees INSERT — alag query mein $3 conflict fix
     for (const student of students.rows) {
-      const ay = academic_year || "2024-25";
-
       // Pehle existing record check karo
       const existing = await client.query(
         `SELECT paid_amount, status FROM student_fees 
@@ -645,7 +662,11 @@ const getAllPayments = async (req, res) => {
 // ── GET /api/fees/stats ────────────────────────────────────────────────────────
 const getStats = async (req, res) => {
   try {
-    const { academic_year = "2024-25", date_from, date_to } = req.query;
+    const {
+      academic_year = currentAcademicYear(),
+      date_from,
+      date_to,
+    } = req.query;
     const paymentParams = [];
     let paymentWhere = "WHERE fp.status = 'approved'";
     if (date_from) {

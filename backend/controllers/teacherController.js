@@ -135,7 +135,8 @@ const getTeacherMeta = async (req, res) => {
       "SELECT DISTINCT department FROM teachers WHERE department IS NOT NULL ORDER BY department",
     );
     const subjs = await pool.query(
-      "SELECT DISTINCT subject    FROM teachers WHERE subject    IS NOT NULL ORDER BY subject",
+      `SELECT DISTINCT subject FROM teacher_subjects
+       WHERE subject IS NOT NULL AND BTRIM(subject) <> '' ORDER BY subject`,
     );
     res.json({
       departments: deps.rows.map((r) => r.department),
@@ -317,6 +318,7 @@ const updateTeacher = async (req, res) => {
   const { id } = req.params;
   const {
     name,
+    password,
     phone,
     teacherType,
     classTeacherClass,
@@ -360,6 +362,19 @@ const updateTeacher = async (req, res) => {
         [name, id],
       );
     }
+    if (password) {
+      if (password.length < 6) {
+        await client.query("ROLLBACK");
+        return res
+          .status(400)
+          .json({ message: "Password must be at least 6 characters" });
+      }
+      const hashedPassword = await bcrypt.hash(password, 10);
+      await client.query(
+        "UPDATE users SET password = $1 WHERE id = (SELECT user_id FROM teachers WHERE id = $2)",
+        [hashedPassword, id],
+      );
+    }
 
     // Update teacher info
     await client.query(
@@ -378,6 +393,11 @@ const updateTeacher = async (req, res) => {
 
     if (newTeacherType === "Class Teacher" || newTeacherType === "Both") {
       if (classTeacherClass && classTeacherSection) {
+        await client.query(
+          `UPDATE classes SET teacher_id = NULL
+           WHERE teacher_id = $1 AND NOT (grade = $2 AND section = $3)`,
+          [id, classTeacherClass, classTeacherSection],
+        );
         // CHECK if class already has a DIFFERENT teacher assigned
         const existingClassTeacher = await checkClassTeacherExists(
           client,
@@ -712,11 +732,9 @@ const addResult = async (req, res) => {
     exam_date,
   } = req.body;
   if (!student_id || !subject || marks_obtained == null || !total_marks)
-    return res
-      .status(400)
-      .json({
-        message: "student_id, subject, marks_obtained, total_marks required",
-      });
+    return res.status(400).json({
+      message: "student_id, subject, marks_obtained, total_marks required",
+    });
   try {
     const result = await pool.query(
       `INSERT INTO results (student_id, subject, marks_obtained, total_marks, exam_type, exam_date)
@@ -829,11 +847,9 @@ const updateStudentFee = async (req, res) => {
     );
 
     if (!studentCheck.rows.length) {
-      return res
-        .status(403)
-        .json({
-          message: "You do not have permission to update this student's fee.",
-        });
+      return res.status(403).json({
+        message: "You do not have permission to update this student's fee.",
+      });
     }
 
     const result = await pool.query(

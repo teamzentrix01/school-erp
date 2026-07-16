@@ -47,6 +47,11 @@ const getToken = () => {
   return m ? m[2] : null;
 };
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+const currentAcademicYear = () => {
+  const now = new Date();
+  const start = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
+  return `${start}-${String(start + 1).slice(-2)}`;
+};
 
 const apiFetch = (path, opts = {}) =>
   fetch(`${API_BASE}/api${path}`, {
@@ -188,7 +193,7 @@ function ClassFeeForm({ cls, onSaved }) {
         body: JSON.stringify({
           class: cls.class || cls.grade || cls.class_name,
           section: cls.section || undefined,
-          academic_year: "2024-25",
+          academic_year: currentAcademicYear(),
           tuition_fee: Number(form.tuition_fee || 0),
           library_fee: Number(form.library_fee || 0),
           other_fee: Number(form.other_fee || 0),
@@ -500,7 +505,7 @@ function CashPaymentModal({ classes, onClose, onSuccess, setToast }) {
       const section = cls.section || "";
       const params = new URLSearchParams({
         class: clsName,
-        academic_year: "2024-25",
+        academic_year: currentAcademicYear(),
         limit: "200",
       });
       if (section) params.append("section", section);
@@ -1350,7 +1355,7 @@ function TurnoverTab() {
     setError("");
     try {
       const params = new URLSearchParams({
-        academic_year: "2024-25",
+        academic_year: currentAcademicYear(),
         date_from: dateFrom,
         date_to: dateTo,
       });
@@ -1633,7 +1638,7 @@ export default function AdminFeesPage() {
       const section = activeClass.section || "";
       const params = new URLSearchParams({
         class: cls,
-        academic_year: "2024-25",
+        academic_year: currentAcademicYear(),
       });
       if (section) params.append("section", section);
       params.append("limit", "200");

@@ -162,12 +162,15 @@ const EMPTY_FORM = {
   subjectAssignments: [{ subject: "", className: "", section: "" }],
   profilePicture: null,
   profilePicturePreview: null,
-    aadharNumber: "",
+  aadharNumber: "",
   aadharImageUrl: "",
   status: "Active",
 };
 
-const cleanPhone = (value) => String(value || "").replace(/\D/g, "").slice(0, 10);
+const cleanPhone = (value) =>
+  String(value || "")
+    .replace(/\D/g, "")
+    .slice(0, 10);
 
 function SubjectAssignmentRow({
   idx,
@@ -251,17 +254,20 @@ function AddTeacherModal({ onClose, onSaved, subjectsList, classesMeta }) {
   const [errors, setErrors] = useState({});
   const fileRef = useRef();
   const aadharFileRef = useRef();
-const [aadharFile, setAadharFile] = useState(null);
-const [aadharPreview, setAadharPreview] = useState(null);
+  const [aadharFile, setAadharFile] = useState(null);
+  const [aadharPreview, setAadharPreview] = useState(null);
 
-const handleAadhar = (e) => {
-  const file = e.target.files?.[0];
-  if (!file) return;
-  if (file.size > 5 * 1024 * 1024) { alert("Aadhaar image must be under 5MB"); return; }
-  setAadharFile(file);
-  setAadharPreview(URL.createObjectURL(file));
-  set("aadharFile", file);
-};
+  const handleAadhar = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      alert("Aadhaar image must be under 5MB");
+      return;
+    }
+    setAadharFile(file);
+    setAadharPreview(URL.createObjectURL(file));
+    set("aadharFile", file);
+  };
 
   const set = (key, val) => setForm((p) => ({ ...p, [key]: val }));
 
@@ -297,11 +303,13 @@ const handleAadhar = (e) => {
     if (!form.name.trim()) e.name = "Name is required";
     if (!form.email.trim()) e.email = "Email is required";
     if (!form.password.trim()) e.password = "Password is required";
-    if (!/^\d{10}$/.test(cleanPhone(form.phone))) e.phone = "Phone must be exactly 10 digits";
-    if (!form.aadharNumber?.trim()) e.aadharNumber = "Aadhaar number is required";
-else if (!/^\d{12}$/.test(form.aadharNumber.replace(/\s/g, "")))
-  e.aadharNumber = "Must be exactly 12 digits";
-if (!aadharFile) e.aadharImage = "Aadhaar card image is required";
+    if (!/^\d{10}$/.test(cleanPhone(form.phone)))
+      e.phone = "Phone must be exactly 10 digits";
+    if (!form.aadharNumber?.trim())
+      e.aadharNumber = "Aadhaar number is required";
+    else if (!/^\d{12}$/.test(form.aadharNumber.replace(/\s/g, "")))
+      e.aadharNumber = "Must be exactly 12 digits";
+    if (!aadharFile) e.aadharImage = "Aadhaar card image is required";
     if (
       (form.teacherType === "Class Teacher" || form.teacherType === "Both") &&
       (!form.classTeacherClass || !form.classTeacherSection)
@@ -317,58 +325,64 @@ if (!aadharFile) e.aadharImage = "Aadhaar card image is required";
     return Object.keys(e).length === 0;
   };
 
- const handleSubmit = async () => {
-  if (!validate()) return;
-  setSaving(true);
-  try {
-    const token = getToken();
-    const fd = new FormData();
-    fd.append("name", form.name);
-    fd.append("email", form.email);
-    fd.append("password", form.password);
-    fd.append("phone", form.phone);
-    fd.append("teacherType", form.teacherType);
-    fd.append("status", form.status);
-    fd.append("aadhar_number", form.aadharNumber.replace(/\s/g, ""));
+  const handleSubmit = async () => {
+    if (!validate()) return;
+    setSaving(true);
+    try {
+      const token = getToken();
+      const fd = new FormData();
+      fd.append("name", form.name);
+      fd.append("email", form.email);
+      fd.append("password", form.password);
+      fd.append("phone", form.phone);
+      fd.append("teacherType", form.teacherType);
+      fd.append("status", form.status);
+      fd.append("aadhar_number", form.aadharNumber.replace(/\s/g, ""));
 
-    if (form.teacherType === "Class Teacher" || form.teacherType === "Both") {
-      fd.append("classTeacherClass", form.classTeacherClass);
-      fd.append("classTeacherSection", form.classTeacherSection);
-    }
-    if (form.teacherType === "Subject Teacher" || form.teacherType === "Both") {
-      fd.append("subjectAssignments", JSON.stringify(form.subjectAssignments));
-    }
-    if (form.profilePicture) fd.append("profilePicture", form.profilePicture);
+      if (form.teacherType === "Class Teacher" || form.teacherType === "Both") {
+        fd.append("classTeacherClass", form.classTeacherClass);
+        fd.append("classTeacherSection", form.classTeacherSection);
+      }
+      if (
+        form.teacherType === "Subject Teacher" ||
+        form.teacherType === "Both"
+      ) {
+        fd.append(
+          "subjectAssignments",
+          JSON.stringify(form.subjectAssignments),
+        );
+      }
+      if (form.profilePicture) fd.append("profilePicture", form.profilePicture);
 
-    // ── Step 1: Create the teacher ──────────────────────────────────────────
-    const res = await fetch(`${API_BASE}/api/admin/teachers`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${token}` },
-      body: fd,
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.message || "Failed");
-
-    // ── Step 2: Upload Aadhaar image after teacher is created ───────────────
-    if (aadharFile && data.id) {
-      const aadharFd = new FormData();
-      aadharFd.append("aadhar_image", aadharFile);
-      await fetch(`${API_BASE}/api/admin/teachers/${data.id}/aadhar-image`, {
+      // ── Step 1: Create the teacher ──────────────────────────────────────────
+      const res = await fetch(`${API_BASE}/api/admin/teachers`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
-        body: aadharFd,
+        body: fd,
       });
-    }
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Failed");
 
-    // ── Step 3: Done ────────────────────────────────────────────────────────
-    onSaved(data);
-    onClose();
-  } catch (err) {
-    setErrors((p) => ({ ...p, submit: err.message }));
-  } finally {
-    setSaving(false);
-  }
-};
+      // ── Step 2: Upload Aadhaar image after teacher is created ───────────────
+      if (aadharFile && data.id) {
+        const aadharFd = new FormData();
+        aadharFd.append("aadhar_image", aadharFile);
+        await fetch(`${API_BASE}/api/admin/teachers/${data.id}/aadhar-image`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}` },
+          body: aadharFd,
+        });
+      }
+
+      // ── Step 3: Done ────────────────────────────────────────────────────────
+      onSaved(data);
+      onClose();
+    } catch (err) {
+      setErrors((p) => ({ ...p, submit: err.message }));
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const showClassSection =
     form.teacherType === "Class Teacher" || form.teacherType === "Both";
@@ -627,61 +641,77 @@ if (!aadharFile) e.aadharImage = "Aadhaar card image is required";
             </div>
           )}
           {/* Aadhaar Number */}
-<div className="space-y-2">
-  <h3 className="text-xs font-bold uppercase tracking-widest text-gray-400">
-    Aadhaar Details
-  </h3>
-  <div>
-    <label className="block text-sm font-medium text-gray-700 mb-1.5">
-      Aadhaar Card Number <span className="text-red-500">*</span>
-    </label>
-    <input
-      type="text"
-      value={form.aadharNumber}
-      onChange={e => {
-        const val = e.target.value.replace(/[^\d\s]/g, "").slice(0, 14);
-        set("aadharNumber", val);
-      }}
-      placeholder="XXXX XXXX XXXX"
-      maxLength={14}
-      className={`w-full h-10 px-3 rounded-xl border text-sm font-mono tracking-widest
+          <div className="space-y-2">
+            <h3 className="text-xs font-bold uppercase tracking-widest text-gray-400">
+              Aadhaar Details
+            </h3>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                Aadhaar Card Number <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={form.aadharNumber}
+                onChange={(e) => {
+                  const val = e.target.value
+                    .replace(/[^\d\s]/g, "")
+                    .slice(0, 14);
+                  set("aadharNumber", val);
+                }}
+                placeholder="XXXX XXXX XXXX"
+                maxLength={14}
+                className={`w-full h-10 px-3 rounded-xl border text-sm font-mono tracking-widest
         focus:outline-none focus:ring-2 focus:ring-blue-400/30 focus:border-blue-400
         ${errors.aadharNumber ? "border-red-300 bg-red-50" : "border-gray-200"}`}
-    />
-    {errors.aadharNumber && <p className="text-xs text-red-500 mt-1">{errors.aadharNumber}</p>}
-  </div>
+              />
+              {errors.aadharNumber && (
+                <p className="text-xs text-red-500 mt-1">
+                  {errors.aadharNumber}
+                </p>
+              )}
+            </div>
 
-  {/* Aadhaar Image */}
-  <div>
-    <label className="block text-sm font-medium text-gray-700 mb-1.5">
-      Aadhaar Card Image <span className="text-red-500">*</span>
-    </label>
-    <div className="flex items-start gap-4">
-      {aadharPreview && (
-        <img
-          src={aadharPreview}
-          alt="Aadhaar"
-          className="h-24 rounded-xl border border-gray-200 object-cover shadow-sm"
-        />
-      )}
-      <div>
-        <label className="cursor-pointer inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50">
-          <Upload size={14} />
-          {aadharPreview ? "Change Image" : "Upload Aadhaar"}
-          <input
-            type="file"
-            accept="image/jpeg,image/png,image/webp,application/pdf"
-            onChange={handleAadhar}
-            className="hidden"
-          />
-        </label>
-        <p className="text-xs text-gray-400 mt-1">JPG, PNG, WebP or PDF · Max 5MB</p>
-        {aadharFile && <p className="text-xs text-green-600 mt-1">✓ {aadharFile.name}</p>}
-        {errors.aadharImage && <p className="text-xs text-red-500 mt-1">{errors.aadharImage}</p>}
-      </div>
-    </div>
-  </div>
-</div>
+            {/* Aadhaar Image */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                Aadhaar Card Image <span className="text-red-500">*</span>
+              </label>
+              <div className="flex items-start gap-4">
+                {aadharPreview && (
+                  <img
+                    src={aadharPreview}
+                    alt="Aadhaar"
+                    className="h-24 rounded-xl border border-gray-200 object-cover shadow-sm"
+                  />
+                )}
+                <div>
+                  <label className="cursor-pointer inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50">
+                    <Upload size={14} />
+                    {aadharPreview ? "Change Image" : "Upload Aadhaar"}
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp,application/pdf"
+                      onChange={handleAadhar}
+                      className="hidden"
+                    />
+                  </label>
+                  <p className="text-xs text-gray-400 mt-1">
+                    JPG, PNG, WebP or PDF · Max 5MB
+                  </p>
+                  {aadharFile && (
+                    <p className="text-xs text-green-600 mt-1">
+                      ✓ {aadharFile.name}
+                    </p>
+                  )}
+                  {errors.aadharImage && (
+                    <p className="text-xs text-red-500 mt-1">
+                      {errors.aadharImage}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
 
           {/* Status */}
           <div className="space-y-2">
@@ -745,11 +775,16 @@ if (!aadharFile) e.aadharImage = "Aadhaar card image is required";
   );
 }
 
-
 // ─────────────────────────────────────────────
 // EDIT TEACHER MODAL
 // ─────────────────────────────────────────────
-function EditTeacherModal({ teacher, onClose, onSaved, subjectsList, classesMeta }) {
+function EditTeacherModal({
+  teacher,
+  onClose,
+  onSaved,
+  subjectsList,
+  classesMeta,
+}) {
   const [form, setForm] = useState(null);
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState({});
@@ -761,7 +796,10 @@ function EditTeacherModal({ teacher, onClose, onSaved, subjectsList, classesMeta
   const handleAadhar = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 5 * 1024 * 1024) { alert("Aadhaar image must be under 5MB"); return; }
+    if (file.size > 5 * 1024 * 1024) {
+      alert("Aadhaar image must be under 5MB");
+      return;
+    }
     setAadharFile(file);
     setAadharPreview(URL.createObjectURL(file));
   };
@@ -778,27 +816,28 @@ function EditTeacherModal({ teacher, onClose, onSaved, subjectsList, classesMeta
         teacherType: teacher.teacherType || "Subject Teacher",
         classTeacherClass: teacher.classTeacherClass || "",
         classTeacherSection: teacher.classTeacherSection || "",
-        subjectAssignments: teacher.subjectAssignments?.length ? 
-          teacher.subjectAssignments : [{ subject: "", className: "", section: "" }],
+        subjectAssignments: teacher.subjectAssignments?.length
+          ? teacher.subjectAssignments
+          : [{ subject: "", className: "", section: "" }],
         profilePicture: null,
         profilePicturePreview: teacher.profilePicture || null,
         status: teacher.status || "Active",
         existingProfilePicture: teacher.profilePicture || null,
-         aadharNumber: teacher.aadharNumber || "",
-      aadharImageUrl: teacher.aadharImageUrl || "",
+        aadharNumber: teacher.aadharNumber || "",
+        aadharImageUrl: teacher.aadharImageUrl || "",
       });
     }
   }, [teacher]);
 
   if (!form) return null;
 
-  const set = (key, val) => setForm(p => ({ ...p, [key]: val }));
+  const set = (key, val) => setForm((p) => ({ ...p, [key]: val }));
 
   const handlePhoto = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = ev => set("profilePicturePreview", ev.target.result);
+    reader.onload = (ev) => set("profilePicturePreview", ev.target.result);
     reader.readAsDataURL(file);
     set("profilePicture", file);
   };
@@ -810,101 +849,129 @@ function EditTeacherModal({ teacher, onClose, onSaved, subjectsList, classesMeta
   };
 
   const addSubjRow = () =>
-    set("subjectAssignments", [...form.subjectAssignments, { subject: "", className: "", section: "" }]);
+    set("subjectAssignments", [
+      ...form.subjectAssignments,
+      { subject: "", className: "", section: "" },
+    ]);
 
   const removeSubjRow = (idx) =>
-    set("subjectAssignments", form.subjectAssignments.filter((_, i) => i !== idx));
+    set(
+      "subjectAssignments",
+      form.subjectAssignments.filter((_, i) => i !== idx),
+    );
 
   const validate = () => {
-  const e = {};
-  if (!form.name.trim()) e.name = "Name is required";
-  if (!form.email.trim()) e.email = "Email is required";
-  if (!/^\d{10}$/.test(cleanPhone(form.phone))) e.phone = "Phone must be exactly 10 digits";
-  if (
-    (form.teacherType === "Class Teacher" || form.teacherType === "Both") &&
-    (!form.classTeacherClass || !form.classTeacherSection)
-  ) e.classTeacher = "Select class and section for class teacher";
-  if (form.teacherType === "Subject Teacher" || form.teacherType === "Both") {
-    const incomplete = form.subjectAssignments.some(
-      (r) => !r.subject || !r.className || !r.section
-    );
-    if (incomplete) e.subjects = "All subject rows must be complete";
-  }
-  // ── Aadhaar validation ───────────────────────────────────────────────────
-  if (form.aadharNumber && !/^\d{12}$/.test(form.aadharNumber.replace(/\s/g, ""))) {
-    e.aadharNumber = "Aadhaar number must be exactly 12 digits";
-  }
-  // ────────────────────────────────────────────────────────────────────────
-  setErrors(e);
-  return Object.keys(e).length === 0;
-};
-
-const handleSubmit = async () => {
-  if (!validate()) return;
-  setSaving(true);
-  try {
-    const token = getToken();
-    const fd = new FormData();
-    fd.append("name", form.name);
-    fd.append("email", form.email);
-    fd.append("phone", form.phone);
-    fd.append("teacherType", form.teacherType);
-    fd.append("status", form.status);
-
-    // ── Aadhaar number ───────────────────────────────────────────────────
-    if (form.aadharNumber) {
-      fd.append("aadhar_number", form.aadharNumber.replace(/\s/g, ""));
-    }
-
-    if (form.teacherType === "Class Teacher" || form.teacherType === "Both") {
-      fd.append("classTeacherClass", form.classTeacherClass);
-      fd.append("classTeacherSection", form.classTeacherSection);
-    }
+    const e = {};
+    if (!form.name.trim()) e.name = "Name is required";
+    if (!form.email.trim()) e.email = "Email is required";
+    if (!/^\d{10}$/.test(cleanPhone(form.phone)))
+      e.phone = "Phone must be exactly 10 digits";
+    if (
+      (form.teacherType === "Class Teacher" || form.teacherType === "Both") &&
+      (!form.classTeacherClass || !form.classTeacherSection)
+    )
+      e.classTeacher = "Select class and section for class teacher";
     if (form.teacherType === "Subject Teacher" || form.teacherType === "Both") {
-      fd.append("subjectAssignments", JSON.stringify(form.subjectAssignments));
+      const incomplete = form.subjectAssignments.some(
+        (r) => !r.subject || !r.className || !r.section,
+      );
+      if (incomplete) e.subjects = "All subject rows must be complete";
     }
-    if (form.profilePicture) {
-      fd.append("profilePicture", form.profilePicture);
+    // ── Aadhaar validation ───────────────────────────────────────────────────
+    if (
+      form.aadharNumber &&
+      !/^\d{12}$/.test(form.aadharNumber.replace(/\s/g, ""))
+    ) {
+      e.aadharNumber = "Aadhaar number must be exactly 12 digits";
     }
-    if (!form.profilePicture && form.existingProfilePicture) {
-      fd.append("existingProfilePicture", form.existingProfilePicture);
-    }
-    if (form.newPassword) {
-      fd.append("password", form.newPassword);
-    }
+    // ────────────────────────────────────────────────────────────────────────
+    setErrors(e);
+    return Object.keys(e).length === 0;
+  };
 
-    // ── Step 1: Update teacher ───────────────────────────────────────────
-    const res = await fetch(`${API_BASE}/api/admin/teachers/${form.id}`, {
-      method: "PUT",
-      headers: { Authorization: `Bearer ${token}` },
-      body: fd,
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.message || "Failed to update");
+  const handleSubmit = async () => {
+    if (!validate()) return;
+    setSaving(true);
+    try {
+      const token = getToken();
+      const fd = new FormData();
+      fd.append("name", form.name);
+      fd.append("email", form.email);
+      fd.append("phone", form.phone);
+      fd.append("teacherType", form.teacherType);
+      fd.append("status", form.status);
 
-    // ── Step 2: Upload new Aadhaar image if changed ──────────────────────
-    if (aadharFile && form.id) {
-      const aadharFd = new FormData();
-      aadharFd.append("aadhar_image", aadharFile);
-      await fetch(`${API_BASE}/api/admin/teachers/${form.id}/aadhar-image`, {
-        method: "POST",
+      // ── Aadhaar number ───────────────────────────────────────────────────
+      if (form.aadharNumber) {
+        fd.append("aadhar_number", form.aadharNumber.replace(/\s/g, ""));
+      }
+
+      if (form.teacherType === "Class Teacher" || form.teacherType === "Both") {
+        fd.append("classTeacherClass", form.classTeacherClass);
+        fd.append("classTeacherSection", form.classTeacherSection);
+      }
+      if (
+        form.teacherType === "Subject Teacher" ||
+        form.teacherType === "Both"
+      ) {
+        fd.append(
+          "subjectAssignments",
+          JSON.stringify(form.subjectAssignments),
+        );
+      }
+      if (form.profilePicture) {
+        fd.append("profilePicture", form.profilePicture);
+      }
+      if (!form.profilePicture && form.existingProfilePicture) {
+        fd.append("existingProfilePicture", form.existingProfilePicture);
+      }
+      if (form.newPassword) {
+        fd.append("password", form.newPassword);
+      }
+
+      // ── Step 1: Update teacher ───────────────────────────────────────────
+      const res = await fetch(`${API_BASE}/api/admin/teachers/${form.id}`, {
+        method: "PUT",
         headers: { Authorization: `Bearer ${token}` },
-        body: aadharFd,
+        body: fd,
       });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Failed to update");
+
+      // ── Step 2: Upload new Aadhaar image if changed ──────────────────────
+      if (aadharFile && form.id) {
+        const aadharFd = new FormData();
+        aadharFd.append("aadhar_image", aadharFile);
+        const aadharRes = await fetch(
+          `${API_BASE}/api/admin/teachers/${form.id}/aadhar-image`,
+          {
+            method: "POST",
+            headers: { Authorization: `Bearer ${token}` },
+            body: aadharFd,
+          },
+        );
+        const aadharData = await aadharRes.json().catch(() => ({}));
+        if (!aadharRes.ok) {
+          throw new Error(
+            aadharData.message || "Teacher updated, but Aadhaar upload failed",
+          );
+        }
+      }
+
+      // ── Step 3: Done ─────────────────────────────────────────────────────
+      onSaved(data);
+      onClose();
+    } catch (err) {
+      setErrors((p) => ({ ...p, submit: err.message }));
+    } finally {
+      setSaving(false);
     }
+  };
 
-    // ── Step 3: Done ─────────────────────────────────────────────────────
-    onSaved(data);
-    onClose();
-  } catch (err) {
-    setErrors((p) => ({ ...p, submit: err.message }));
-  } finally {
-    setSaving(false);
-  }
-};
-
-  const showClassSection = form.teacherType === "Class Teacher" || form.teacherType === "Both";
-  const showSubjects = form.teacherType === "Subject Teacher" || form.teacherType === "Both";
+  const showClassSection =
+    form.teacherType === "Class Teacher" || form.teacherType === "Both";
+  const showSubjects =
+    form.teacherType === "Subject Teacher" || form.teacherType === "Both";
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-end bg-black/30 backdrop-blur-sm">
@@ -912,9 +979,14 @@ const handleSubmit = async () => {
         <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100 flex-shrink-0">
           <div>
             <h2 className="text-lg font-bold text-gray-900">Edit Teacher</h2>
-            <p className="text-xs text-gray-400 mt-0.5">Update teacher details</p>
+            <p className="text-xs text-gray-400 mt-0.5">
+              Update teacher details
+            </p>
           </div>
-          <button onClick={onClose} className="p-2 rounded-xl hover:bg-gray-100 text-gray-400 hover:text-gray-700">
+          <button
+            onClick={onClose}
+            className="p-2 rounded-xl hover:bg-gray-100 text-gray-400 hover:text-gray-700"
+          >
             <X size={18} />
           </button>
         </div>
@@ -922,9 +994,16 @@ const handleSubmit = async () => {
         <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6">
           {/* Profile picture - same as add modal */}
           <div className="flex flex-col items-center gap-3">
-            <div onClick={() => fileRef.current?.click()} className="relative w-24 h-24 rounded-2xl overflow-hidden bg-gray-100 border-2 border-dashed border-gray-200 cursor-pointer hover:border-blue-400 transition-colors group">
+            <div
+              onClick={() => fileRef.current?.click()}
+              className="relative w-24 h-24 rounded-2xl overflow-hidden bg-gray-100 border-2 border-dashed border-gray-200 cursor-pointer hover:border-blue-400 transition-colors group"
+            >
               {form.profilePicturePreview ? (
-                <img src={form.profilePicturePreview} alt="preview" className="w-full h-full object-cover" />
+                <img
+                  src={form.profilePicturePreview}
+                  alt="preview"
+                  className="w-full h-full object-cover"
+                />
               ) : (
                 <div className="flex flex-col items-center justify-center h-full text-gray-400 group-hover:text-blue-500">
                   <Camera size={24} />
@@ -932,38 +1011,80 @@ const handleSubmit = async () => {
                 </div>
               )}
             </div>
-            <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handlePhoto} />
-            <p className="text-[11px] text-gray-400">Click to change profile photo</p>
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handlePhoto}
+            />
+            <p className="text-[11px] text-gray-400">
+              Click to change profile photo
+            </p>
           </div>
 
           {/* Basic info */}
           <div className="space-y-4">
-            <h3 className="text-xs font-bold uppercase tracking-widest text-gray-400">Basic Information</h3>
+            <h3 className="text-xs font-bold uppercase tracking-widest text-gray-400">
+              Basic Information
+            </h3>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Full Name <span className="text-red-500">*</span></label>
-              <input value={form.name} onChange={e => set("name", e.target.value)} className={`w-full h-10 px-3 rounded-xl border text-sm ${errors.name ? "border-red-300 bg-red-50" : "border-gray-200"}`} />
-              {errors.name && <p className="text-xs text-red-500 mt-1">{errors.name}</p>}
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                Full Name <span className="text-red-500">*</span>
+              </label>
+              <input
+                value={form.name}
+                onChange={(e) => set("name", e.target.value)}
+                className={`w-full h-10 px-3 rounded-xl border text-sm ${errors.name ? "border-red-300 bg-red-50" : "border-gray-200"}`}
+              />
+              {errors.name && (
+                <p className="text-xs text-red-500 mt-1">{errors.name}</p>
+              )}
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Phone Number <span className="text-red-500">*</span></label>
-              <input value={form.phone} onChange={e => set("phone", cleanPhone(e.target.value))} type="tel" inputMode="numeric" maxLength={10} className={`w-full h-10 px-3 rounded-xl border text-sm ${errors.phone ? "border-red-300 bg-red-50" : "border-gray-200"}`} />
-              {errors.phone && <p className="text-xs text-red-500 mt-1">{errors.phone}</p>}
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                Phone Number <span className="text-red-500">*</span>
+              </label>
+              <input
+                value={form.phone}
+                onChange={(e) => set("phone", cleanPhone(e.target.value))}
+                type="tel"
+                inputMode="numeric"
+                maxLength={10}
+                className={`w-full h-10 px-3 rounded-xl border text-sm ${errors.phone ? "border-red-300 bg-red-50" : "border-gray-200"}`}
+              />
+              {errors.phone && (
+                <p className="text-xs text-red-500 mt-1">{errors.phone}</p>
+              )}
             </div>
           </div>
 
           {/* Email (read-only for edit) */}
           <div className="space-y-2">
-            <h3 className="text-xs font-bold uppercase tracking-widest text-gray-400">Email Address</h3>
-            <input value={form.email} disabled className="w-full h-10 px-3 rounded-xl border border-gray-200 bg-gray-50 text-sm text-gray-500" />
+            <h3 className="text-xs font-bold uppercase tracking-widest text-gray-400">
+              Email Address
+            </h3>
+            <input
+              value={form.email}
+              disabled
+              className="w-full h-10 px-3 rounded-xl border border-gray-200 bg-gray-50 text-sm text-gray-500"
+            />
             <p className="text-[10px] text-gray-400">Email cannot be changed</p>
           </div>
 
           {/* Teacher Type */}
           <div className="space-y-3">
-            <h3 className="text-xs font-bold uppercase tracking-widest text-gray-400">Teacher Role</h3>
+            <h3 className="text-xs font-bold uppercase tracking-widest text-gray-400">
+              Teacher Role
+            </h3>
             <div className="grid grid-cols-3 gap-2">
-              {["Class Teacher", "Subject Teacher", "Both"].map(type => (
-                <button key={type} type="button" onClick={() => set("teacherType", type)} className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 text-xs font-semibold transition-all ${form.teacherType === type ? "border-blue-500 bg-blue-50 text-blue-700" : "border-gray-200 bg-white text-gray-500"}`}>
+              {["Class Teacher", "Subject Teacher", "Both"].map((type) => (
+                <button
+                  key={type}
+                  type="button"
+                  onClick={() => set("teacherType", type)}
+                  className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 text-xs font-semibold transition-all ${form.teacherType === type ? "border-blue-500 bg-blue-50 text-blue-700" : "border-gray-200 bg-white text-gray-500"}`}
+                >
                   {type === "Class Teacher" && <GraduationCap size={18} />}
                   {type === "Subject Teacher" && <BookOpen size={18} />}
                   {type === "Both" && <Users size={18} />}
@@ -976,21 +1097,45 @@ const handleSubmit = async () => {
           {/* Class Teacher section */}
           {showClassSection && (
             <div className="space-y-3 p-4 bg-blue-50/60 rounded-2xl border border-blue-100">
-              <h3 className="text-xs font-bold uppercase tracking-widest text-blue-600">Class Teacher Assignment</h3>
-              {errors.classTeacher && <p className="text-xs text-red-500">{errors.classTeacher}</p>}
+              <h3 className="text-xs font-bold uppercase tracking-widest text-blue-600">
+                Class Teacher Assignment
+              </h3>
+              {errors.classTeacher && (
+                <p className="text-xs text-red-500">{errors.classTeacher}</p>
+              )}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1.5">Class</label>
-                  <select value={form.classTeacherClass} onChange={e => set("classTeacherClass", e.target.value)} className="w-full h-10 px-3 rounded-xl border border-gray-200 bg-white text-sm">
+                  <label className="block text-xs font-medium text-gray-600 mb-1.5">
+                    Class
+                  </label>
+                  <select
+                    value={form.classTeacherClass}
+                    onChange={(e) => set("classTeacherClass", e.target.value)}
+                    className="w-full h-10 px-3 rounded-xl border border-gray-200 bg-white text-sm"
+                  >
                     <option value="">Select Class</option>
-                    {CLASS_NAMES.map(c => <option key={c} value={c}>Class {c}</option>)}
+                    {CLASS_NAMES.map((c) => (
+                      <option key={c} value={c}>
+                        Class {c}
+                      </option>
+                    ))}
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1.5">Section</label>
-                  <select value={form.classTeacherSection} onChange={e => set("classTeacherSection", e.target.value)} className="w-full h-10 px-3 rounded-xl border border-gray-200 bg-white text-sm">
+                  <label className="block text-xs font-medium text-gray-600 mb-1.5">
+                    Section
+                  </label>
+                  <select
+                    value={form.classTeacherSection}
+                    onChange={(e) => set("classTeacherSection", e.target.value)}
+                    className="w-full h-10 px-3 rounded-xl border border-gray-200 bg-white text-sm"
+                  >
                     <option value="">Select Section</option>
-                    {SECTIONS.map(s => <option key={s} value={s}>Section {s}</option>)}
+                    {SECTIONS.map((s) => (
+                      <option key={s} value={s}>
+                        Section {s}
+                      </option>
+                    ))}
                   </select>
                 </div>
               </div>
@@ -1001,79 +1146,120 @@ const handleSubmit = async () => {
           {showSubjects && (
             <div className="space-y-3 p-4 bg-violet-50/60 rounded-2xl border border-violet-100">
               <div className="flex items-center justify-between">
-                <h3 className="text-xs font-bold uppercase tracking-widest text-violet-600">Subject Assignments</h3>
-                <button type="button" onClick={addSubjRow} className="flex items-center gap-1 text-xs font-semibold text-violet-600"><Plus size={13} /> Add Row</button>
+                <h3 className="text-xs font-bold uppercase tracking-widest text-violet-600">
+                  Subject Assignments
+                </h3>
+                <button
+                  type="button"
+                  onClick={addSubjRow}
+                  className="flex items-center gap-1 text-xs font-semibold text-violet-600"
+                >
+                  <Plus size={13} /> Add Row
+                </button>
               </div>
-              {errors.subjects && <p className="text-xs text-red-500">{errors.subjects}</p>}
+              {errors.subjects && (
+                <p className="text-xs text-red-500">{errors.subjects}</p>
+              )}
               <div className="space-y-2">
                 {form.subjectAssignments.map((row, idx) => (
-                  <SubjectAssignmentRow key={idx} idx={idx} assignment={row} onChange={updateSubjRow} onRemove={removeSubjRow} canRemove={form.subjectAssignments.length > 1} subjectsList={subjectsList} />
+                  <SubjectAssignmentRow
+                    key={idx}
+                    idx={idx}
+                    assignment={row}
+                    onChange={updateSubjRow}
+                    onRemove={removeSubjRow}
+                    canRemove={form.subjectAssignments.length > 1}
+                    subjectsList={subjectsList}
+                  />
                 ))}
               </div>
             </div>
           )}
 
           {/* Aadhaar Details */}
-<div className="space-y-2">
-  <h3 className="text-xs font-bold uppercase tracking-widest text-gray-400">
-    Aadhaar Details
-  </h3>
-  <div>
-    <label className="block text-sm font-medium text-gray-700 mb-1.5">
-      Aadhaar Card Number
-    </label>
-    <input
-      type="text"
-      value={form.aadharNumber}
-      onChange={e => {
-        const val = e.target.value.replace(/[^\d\s]/g, "").slice(0, 14);
-        set("aadharNumber", val);
-      }}
-      placeholder="XXXX XXXX XXXX"
-      maxLength={14}
-      className={`w-full h-10 px-3 rounded-xl border text-sm font-mono tracking-widest
+          <div className="space-y-2">
+            <h3 className="text-xs font-bold uppercase tracking-widest text-gray-400">
+              Aadhaar Details
+            </h3>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                Aadhaar Card Number
+              </label>
+              <input
+                type="text"
+                value={form.aadharNumber}
+                onChange={(e) => {
+                  const val = e.target.value
+                    .replace(/[^\d\s]/g, "")
+                    .slice(0, 14);
+                  set("aadharNumber", val);
+                }}
+                placeholder="XXXX XXXX XXXX"
+                maxLength={14}
+                className={`w-full h-10 px-3 rounded-xl border text-sm font-mono tracking-widest
         focus:outline-none focus:ring-2 focus:ring-blue-400/30 focus:border-blue-400
         ${errors.aadharNumber ? "border-red-300 bg-red-50" : "border-gray-200"}`}
-    />
-    {errors.aadharNumber && <p className="text-xs text-red-500 mt-1">{errors.aadharNumber}</p>}
-  </div>
-  <div>
-    <label className="block text-sm font-medium text-gray-700 mb-1.5">
-      Aadhaar Card Image
-    </label>
-    <div className="flex items-start gap-4">
-      {(aadharPreview || form.aadharImageUrl) && (
-        <img
-          src={aadharPreview || form.aadharImageUrl}
-          alt="Aadhaar"
-          className="h-24 rounded-xl border border-gray-200 object-cover shadow-sm"
-        />
-      )}
-      <div>
-        <label className="cursor-pointer inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50">
-          <Upload size={14} />
-          {aadharPreview || form.aadharImageUrl ? "Change Image" : "Upload Aadhaar"}
-          <input
-            type="file"
-            accept="image/jpeg,image/png,image/webp,application/pdf"
-            onChange={handleAadhar}
-            className="hidden"
-          />
-        </label>
-        <p className="text-xs text-gray-400 mt-1">JPG, PNG, WebP or PDF · Max 5MB</p>
-        {aadharFile && <p className="text-xs text-green-600 mt-1">✓ {aadharFile.name}</p>}
-      </div>
-    </div>
-  </div>
-</div>
+              />
+              {errors.aadharNumber && (
+                <p className="text-xs text-red-500 mt-1">
+                  {errors.aadharNumber}
+                </p>
+              )}
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                Aadhaar Card Image
+              </label>
+              <div className="flex items-start gap-4">
+                {(aadharPreview || form.aadharImageUrl) && (
+                  <img
+                    src={aadharPreview || form.aadharImageUrl}
+                    alt="Aadhaar"
+                    className="h-24 rounded-xl border border-gray-200 object-cover shadow-sm"
+                  />
+                )}
+                <div>
+                  <label className="cursor-pointer inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50">
+                    <Upload size={14} />
+                    {aadharPreview || form.aadharImageUrl
+                      ? "Change Image"
+                      : "Upload Aadhaar"}
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp,application/pdf"
+                      onChange={handleAadhar}
+                      className="hidden"
+                    />
+                  </label>
+                  <p className="text-xs text-gray-400 mt-1">
+                    JPG, PNG, WebP or PDF · Max 5MB
+                  </p>
+                  {aadharFile && (
+                    <p className="text-xs text-green-600 mt-1">
+                      ✓ {aadharFile.name}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
 
           {/* Status */}
           <div className="space-y-2">
-            <h3 className="text-xs font-bold uppercase tracking-widest text-gray-400">Status</h3>
+            <h3 className="text-xs font-bold uppercase tracking-widest text-gray-400">
+              Status
+            </h3>
             <div className="flex gap-2">
-              {["Active", "Inactive", "On Leave"].map(s => (
-                <button key={s} type="button" onClick={() => set("status", s)} className={`px-3 py-1.5 rounded-xl border text-xs font-semibold ${form.status === s ? (s === "Active" ? "border-emerald-400 bg-emerald-50 text-emerald-700" : "border-gray-400 bg-gray-100 text-gray-600") : "border-gray-200 text-gray-400"}`}>
-                  {form.status === s && <Check size={11} className="inline mr-1" />}
+              {["Active", "Inactive", "On Leave"].map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => set("status", s)}
+                  className={`px-3 py-1.5 rounded-xl border text-xs font-semibold ${form.status === s ? (s === "Active" ? "border-emerald-400 bg-emerald-50 text-emerald-700" : "border-gray-400 bg-gray-100 text-gray-600") : "border-gray-200 text-gray-400"}`}
+                >
+                  {form.status === s && (
+                    <Check size={11} className="inline mr-1" />
+                  )}
                   {s}
                 </button>
               ))}
@@ -1082,18 +1268,47 @@ const handleSubmit = async () => {
 
           {/* Optional password change */}
           <div className="space-y-2">
-            <h3 className="text-xs font-bold uppercase tracking-widest text-gray-400">Change Password (Optional)</h3>
-            <input type="password" value={form.newPassword || ""} onChange={e => set("newPassword", e.target.value)} placeholder="Enter new password to change" className="w-full h-10 px-3 rounded-xl border border-gray-200 text-sm" />
-            <p className="text-[10px] text-gray-400">Leave blank to keep current password</p>
+            <h3 className="text-xs font-bold uppercase tracking-widest text-gray-400">
+              Change Password (Optional)
+            </h3>
+            <input
+              type="password"
+              value={form.newPassword || ""}
+              onChange={(e) => set("newPassword", e.target.value)}
+              placeholder="Enter new password to change"
+              className="w-full h-10 px-3 rounded-xl border border-gray-200 text-sm"
+            />
+            <p className="text-[10px] text-gray-400">
+              Leave blank to keep current password
+            </p>
           </div>
 
-          {errors.submit && <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-600">{errors.submit}</div>}
+          {errors.submit && (
+            <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-600">
+              {errors.submit}
+            </div>
+          )}
         </div>
 
         <div className="flex items-center gap-3 px-6 py-4 border-t border-gray-100 flex-shrink-0 bg-white">
-          <button onClick={onClose} className="flex-1 h-10 rounded-xl border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50">Cancel</button>
-          <button onClick={handleSubmit} disabled={saving} className="flex-1 h-10 rounded-xl bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 disabled:opacity-60 flex items-center justify-center gap-2">
-            {saving ? <><Loader2 size={15} className="animate-spin" /> Saving…</> : <>Save Changes</>}
+          <button
+            onClick={onClose}
+            className="flex-1 h-10 rounded-xl border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={saving}
+            className="flex-1 h-10 rounded-xl bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 disabled:opacity-60 flex items-center justify-center gap-2"
+          >
+            {saving ? (
+              <>
+                <Loader2 size={15} className="animate-spin" /> Saving…
+              </>
+            ) : (
+              <>Save Changes</>
+            )}
           </button>
         </div>
       </div>
@@ -1106,7 +1321,15 @@ const handleSubmit = async () => {
 // ─────────────────────────────────────────────
 const TABLE_COLS = ["Teacher", "ID", "Type", "Assignment", "Status", "Actions"];
 
-function TeacherTable({ teachers, selected, onSelect, onSelectAll, onDelete,onEdit,onView }) {
+function TeacherTable({
+  teachers,
+  selected,
+  onSelect,
+  onSelectAll,
+  onDelete,
+  onEdit,
+  onView,
+}) {
   const allSelected =
     teachers.length > 0 && selected.length === teachers.length;
 
@@ -1250,14 +1473,14 @@ function TeacherTable({ teachers, selected, onSelect, onSelectAll, onDelete,onEd
                     >
                       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
                         <button
-  onClick={() => onView(t)}   // ← ADD onClick
-  className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors"
-  title="View"
->
-  <Eye size={15} />
-</button>
+                          onClick={() => onView(t)} // ← ADD onClick
+                          className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors"
+                          title="View"
+                        >
+                          <Eye size={15} />
+                        </button>
                         <button
-                        onClick={() => onEdit(t)}
+                          onClick={() => onEdit(t)}
                           className="p-1.5 rounded-lg hover:bg-blue-50 text-gray-400 hover:text-blue-600 transition-colors"
                           title="Edit"
                         >
@@ -1446,14 +1669,19 @@ function SummaryCard({ icon: Icon, value, label, iconBg, iconColor }) {
 function ViewTeacherModal({ teacher: t, onClose }) {
   if (!t) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
-      onClick={e => e.target === e.currentTarget && onClose()}>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
+      onClick={(e) => e.target === e.currentTarget && onClose()}
+    >
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-y-auto max-h-[90vh]">
         <div className="p-6">
           {/* Header */}
           <div className="flex items-center justify-between mb-5">
             <h2 className="text-lg font-bold text-gray-900">Teacher Profile</h2>
-            <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400">
+            <button
+              onClick={onClose}
+              className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400"
+            >
               <X size={18} />
             </button>
           </div>
@@ -1461,9 +1689,15 @@ function ViewTeacherModal({ teacher: t, onClose }) {
           {/* Banner */}
           <div className="flex items-center gap-4 p-4 bg-gradient-to-r from-blue-500 to-blue-700 rounded-xl mb-5">
             {t.profilePicture ? (
-              <img src={t.profilePicture} alt={t.name} className="w-16 h-16 rounded-xl object-cover flex-shrink-0" />
+              <img
+                src={t.profilePicture}
+                alt={t.name}
+                className="w-16 h-16 rounded-xl object-cover flex-shrink-0"
+              />
             ) : (
-              <div className={`w-16 h-16 rounded-xl flex items-center justify-center text-white text-xl font-bold flex-shrink-0 ${t.avatarColor}`}>
+              <div
+                className={`w-16 h-16 rounded-xl flex items-center justify-center text-white text-xl font-bold flex-shrink-0 ${t.avatarColor}`}
+              >
                 {t.avatar}
               </div>
             )}
@@ -1478,27 +1712,51 @@ function ViewTeacherModal({ teacher: t, onClose }) {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {/* Contact */}
             <div className="bg-gray-50 rounded-xl p-3">
-              <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Contact</p>
+              <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">
+                Contact
+              </p>
               <div className="space-y-1">
-                <div className="flex justify-between text-sm"><span className="text-gray-400">Email</span><span className="text-gray-700 font-medium truncate max-w-[55%]">{t.email || "—"}</span></div>
-                <div className="flex justify-between text-sm"><span className="text-gray-400">Phone</span><span className="text-gray-700 font-medium">{t.phone || "—"}</span></div>
-                <div className="flex justify-between text-sm"><span className="text-gray-400">Status</span><StatusBadge status={t.status} /></div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-400">Email</span>
+                  <span className="text-gray-700 font-medium truncate max-w-[55%]">
+                    {t.email || "—"}
+                  </span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-400">Phone</span>
+                  <span className="text-gray-700 font-medium">
+                    {t.phone || "—"}
+                  </span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-400">Status</span>
+                  <StatusBadge status={t.status} />
+                </div>
               </div>
             </div>
 
             {/* Assignment */}
             <div className="bg-gray-50 rounded-xl p-3">
-              <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Assignment</p>
-              {(t.teacherType === "Class Teacher" || t.teacherType === "Both") && t.classTeacherClass && (
-                <div className="flex justify-between text-sm mb-1">
-                  <span className="text-gray-400">Class</span>
-                  <span className="text-gray-700 font-medium">Class {t.classTeacherClass}-{t.classTeacherSection}</span>
-                </div>
-              )}
+              <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">
+                Assignment
+              </p>
+              {(t.teacherType === "Class Teacher" ||
+                t.teacherType === "Both") &&
+                t.classTeacherClass && (
+                  <div className="flex justify-between text-sm mb-1">
+                    <span className="text-gray-400">Class</span>
+                    <span className="text-gray-700 font-medium">
+                      Class {t.classTeacherClass}-{t.classTeacherSection}
+                    </span>
+                  </div>
+                )}
               {t.subjectAssignments?.length > 0 && (
                 <div className="flex flex-wrap gap-1 mt-1">
                   {t.subjectAssignments.map((a, i) => (
-                    <span key={i} className="px-1.5 py-0.5 bg-violet-50 text-violet-700 rounded text-[10px] font-medium">
+                    <span
+                      key={i}
+                      className="px-1.5 py-0.5 bg-violet-50 text-violet-700 rounded text-[10px] font-medium"
+                    >
                       {a.subject} {a.className}-{a.section}
                     </span>
                   ))}
@@ -1508,18 +1766,25 @@ function ViewTeacherModal({ teacher: t, onClose }) {
 
             {/* Aadhaar */}
             <div className="bg-gray-50 rounded-xl p-3 sm:col-span-2">
-              <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Aadhaar Details</p>
+              <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">
+                Aadhaar Details
+              </p>
               <div className="flex justify-between text-sm mb-2">
                 <span className="text-gray-400">Aadhaar Number</span>
                 <span className="text-gray-700 font-medium font-mono">
                   {t.aadharNumber
-                    ? t.aadharNumber.replace(/(\d{4})(\d{4})(\d{4})/, "$1 $2 $3")
+                    ? t.aadharNumber.replace(
+                        /(\d{4})(\d{4})(\d{4})/,
+                        "$1 $2 $3",
+                      )
                     : "—"}
                 </span>
               </div>
               {t.aadharImageUrl && (
                 <div>
-                  <p className="text-xs text-gray-400 mb-1">Aadhaar Card Image</p>
+                  <p className="text-xs text-gray-400 mb-1">
+                    Aadhaar Card Image
+                  </p>
                   <a href={t.aadharImageUrl} target="_blank" rel="noreferrer">
                     <img
                       src={t.aadharImageUrl}
@@ -1570,16 +1835,20 @@ export default function TeachersPage() {
   const [selected, setSelected] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [editingTeacher, setEditingTeacher] = useState(null);
-const [showEditModal, setShowEditModal] = useState(false);
-const [viewingTeacher, setViewingTeacher] = useState(null);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [viewingTeacher, setViewingTeacher] = useState(null);
 
   // ── Fetch ────────────────────────────────────────────────────────────────
   useEffect(() => {
     const token = getToken();
     const headers = { Authorization: `Bearer ${token}` };
     Promise.all([
-      fetch(`${API_BASE}/api/admin/teachers`, { headers }).then((r) => r.json()),
-      fetch(`${API_BASE}/api/admin/teachers/meta`, { headers }).then((r) => r.json()),
+      fetch(`${API_BASE}/api/admin/teachers`, { headers }).then((r) =>
+        r.json(),
+      ),
+      fetch(`${API_BASE}/api/admin/teachers/meta`, { headers }).then((r) =>
+        r.json(),
+      ),
     ])
       .then(([teacherData, metaData]) => {
         if (Array.isArray(teacherData)) setTeachers(teacherData);
@@ -1632,50 +1901,52 @@ const [viewingTeacher, setViewingTeacher] = useState(null);
   const toggleAll = (ids) =>
     setSelected((p) => (p.length === ids.length ? [] : ids));
 
-// const handleSaved = (updatedTeacher) => {
-//   setTeachers(prev => {
-//     const index = prev.findIndex(t => t.id === updatedTeacher.id);
-//     if (index !== -1) {
-//       // Update existing teacher
-//       const newTeachers = [...prev];
-//       newTeachers[index] = {
-//         ...updatedTeacher,
-//         avatar: getInitials(updatedTeacher.name),
-//         avatarColor: AVATAR_COLORS[(updatedTeacher.dbId || index) % AVATAR_COLORS.length],
-//       };
-//       return newTeachers;
-//     } else {
-//       // Add new teacher
-//       return [...prev, {
-//         ...updatedTeacher,
-//         avatar: getInitials(updatedTeacher.name),
-//         avatarColor: AVATAR_COLORS[prev.length % AVATAR_COLORS.length],
-//       }];
-//     }
-//   });
-// };
-const handleSaved = async () => {
-  // Simply re-fetch the full list — avoids ID format mismatch entirely
-  const token = getToken();
-  const headers = { Authorization: `Bearer ${token}` };
-  try {
-    const teacherData = await fetch(`${API_BASE}/api/admin/teachers`, { headers }).then(r => r.json());
-    if (Array.isArray(teacherData)) setTeachers(teacherData);
-  } catch {
-    // silent — list will refresh on next page load
-  }
-};
+  // const handleSaved = (updatedTeacher) => {
+  //   setTeachers(prev => {
+  //     const index = prev.findIndex(t => t.id === updatedTeacher.id);
+  //     if (index !== -1) {
+  //       // Update existing teacher
+  //       const newTeachers = [...prev];
+  //       newTeachers[index] = {
+  //         ...updatedTeacher,
+  //         avatar: getInitials(updatedTeacher.name),
+  //         avatarColor: AVATAR_COLORS[(updatedTeacher.dbId || index) % AVATAR_COLORS.length],
+  //       };
+  //       return newTeachers;
+  //     } else {
+  //       // Add new teacher
+  //       return [...prev, {
+  //         ...updatedTeacher,
+  //         avatar: getInitials(updatedTeacher.name),
+  //         avatarColor: AVATAR_COLORS[prev.length % AVATAR_COLORS.length],
+  //       }];
+  //     }
+  //   });
+  // };
+  const handleSaved = async () => {
+    // Simply re-fetch the full list — avoids ID format mismatch entirely
+    const token = getToken();
+    const headers = { Authorization: `Bearer ${token}` };
+    try {
+      const teacherData = await fetch(`${API_BASE}/api/admin/teachers`, {
+        headers,
+      }).then((r) => r.json());
+      if (Array.isArray(teacherData)) setTeachers(teacherData);
+    } catch {
+      // silent — list will refresh on next page load
+    }
+  };
 
-const handleEdit = (teacher) => {
-  setEditingTeacher(teacher);
-  setShowEditModal(true);
-};
+  const handleEdit = (teacher) => {
+    setEditingTeacher(teacher);
+    setShowEditModal(true);
+  };
 
-const handleDelete = async (id) => {
+  const handleDelete = async (id) => {
     if (!confirm("Delete this teacher?")) return;
     const token = getToken();
     try {
-      const teacher = teachers.find(t => t.id === id);
+      const teacher = teachers.find((t) => t.id === id);
       const dbId = teacher?.dbId;
       await fetch(`${API_BASE}/api/admin/teachers/${dbId}`, {
         method: "DELETE",
@@ -1850,7 +2121,7 @@ const handleDelete = async (id) => {
                 onSelectAll={toggleAll}
                 onDelete={handleDelete}
                 onEdit={handleEdit}
-                  onView={setViewingTeacher}
+                onView={setViewingTeacher}
               />
             </div>
           )}
@@ -1915,25 +2186,24 @@ const handleDelete = async (id) => {
         />
       )}
       {/* Edit Teacher Modal */}
-{showEditModal && (
-  <EditTeacherModal
-    teacher={editingTeacher}
-    onClose={() => {
-      setShowEditModal(false);
-      setEditingTeacher(null);
-    }}
-    onSaved={handleSaved}
-    subjectsList={meta.subjects}
-    classesMeta={meta}
-  />
-)}
-{viewingTeacher && (
-  <ViewTeacherModal
-    teacher={viewingTeacher}
-    onClose={() => setViewingTeacher(null)}
-  />
-)}
-
+      {showEditModal && (
+        <EditTeacherModal
+          teacher={editingTeacher}
+          onClose={() => {
+            setShowEditModal(false);
+            setEditingTeacher(null);
+          }}
+          onSaved={handleSaved}
+          subjectsList={meta.subjects}
+          classesMeta={meta}
+        />
+      )}
+      {viewingTeacher && (
+        <ViewTeacherModal
+          teacher={viewingTeacher}
+          onClose={() => setViewingTeacher(null)}
+        />
+      )}
     </div>
   );
 }

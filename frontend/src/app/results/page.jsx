@@ -10,6 +10,7 @@ import {
   FileSpreadsheet,
   FileText,
   Loader2,
+  Pencil,
   Plus,
   Printer,
   RefreshCw,
@@ -51,16 +52,16 @@ async function apiFetch(path, options = {}) {
   return data;
 }
 
-function ExamModal({ classes, onClose, onSaved }) {
+function ExamModal({ classes, initial = null, onClose, onSaved }) {
   const [form, setForm] = useState({
-    name: "",
-    exam_type: "Unit Test",
-    academic_year: currentAcademicYear(),
-    class: "",
-    section: "",
-    start_date: "",
-    end_date: "",
-    default_total_marks: 100,
+    name: initial?.name || "",
+    exam_type: initial?.exam_type || "Unit Test",
+    academic_year: initial?.academic_year || currentAcademicYear(),
+    class: initial?.class || "",
+    section: initial?.section || "",
+    start_date: initial?.start_date?.slice(0, 10) || "",
+    end_date: initial?.end_date?.slice(0, 10) || "",
+    default_total_marks: initial?.default_total_marks || 100,
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -73,7 +74,10 @@ function ExamModal({ classes, onClose, onSaved }) {
     setSaving(true);
     setError("");
     try {
-      await apiFetch("/exams", { method: "POST", body: JSON.stringify(form) });
+      await apiFetch(initial ? `/exams/${initial.id}` : "/exams", {
+        method: initial ? "PUT" : "POST",
+        body: JSON.stringify(form),
+      });
       await onSaved();
       onClose();
     } catch (err) {
@@ -88,7 +92,9 @@ function ExamModal({ classes, onClose, onSaved }) {
       <div className="w-full max-w-xl bg-white rounded-lg shadow-2xl">
         <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
           <div>
-            <h2 className="font-bold text-gray-900">Create Exam</h2>
+            <h2 className="font-bold text-gray-900">
+              {initial ? "Edit Exam" : "Create Exam"}
+            </h2>
             <p className="text-xs text-gray-400 mt-0.5">
               Marks remain draft until you publish the exam.
             </p>
@@ -218,10 +224,12 @@ function ExamModal({ classes, onClose, onSaved }) {
           >
             {saving ? (
               <Loader2 size={14} className="animate-spin" />
+            ) : initial ? (
+              <Pencil size={14} />
             ) : (
               <Plus size={14} />
             )}{" "}
-            Create
+            {initial ? "Save Changes" : "Create"}
           </button>
         </div>
       </div>
@@ -231,6 +239,7 @@ function ExamModal({ classes, onClose, onSaved }) {
 
 function ExamsTab({ exams, classes, load, selectExam }) {
   const [showModal, setShowModal] = useState(false);
+  const [editingExam, setEditingExam] = useState(null);
   const remove = async (id) => {
     if (!window.confirm("Delete this exam and its marks?")) return;
     await apiFetch(`/exams/${id}`, { method: "DELETE" });
@@ -314,6 +323,13 @@ function ExamsTab({ exams, classes, load, selectExam }) {
                     >
                       Enter Marks
                     </button>
+                    <button
+                      onClick={() => setEditingExam(exam)}
+                      className="p-2 text-blue-600"
+                      title="Edit exam"
+                    >
+                      <Pencil size={14} />
+                    </button>
                     {exam.status !== "published" && (
                       <button
                         onClick={() => publish(exam.id)}
@@ -346,6 +362,14 @@ function ExamsTab({ exams, classes, load, selectExam }) {
         <ExamModal
           classes={classes}
           onClose={() => setShowModal(false)}
+          onSaved={load}
+        />
+      )}
+      {editingExam && (
+        <ExamModal
+          classes={classes}
+          initial={editingExam}
+          onClose={() => setEditingExam(null)}
           onSaved={load}
         />
       )}

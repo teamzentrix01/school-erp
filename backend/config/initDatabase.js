@@ -506,6 +506,12 @@ async function initDatabase() {
     ALTER TABLE fee_payments ADD COLUMN IF NOT EXISTS payment_mode VARCHAR(30);
     ALTER TABLE student_fees ADD COLUMN IF NOT EXISTS hostel_fee NUMERIC(12,2) NOT NULL DEFAULT 0;
     ALTER TABLE student_fees ADD COLUMN IF NOT EXISTS mess_fee NUMERIC(12,2) NOT NULL DEFAULT 0;
+    ALTER TABLE fee_structures ADD COLUMN IF NOT EXISTS section VARCHAR(30);
+    ALTER TABLE fee_structures ADD COLUMN IF NOT EXISTS due_date DATE;
+    ALTER TABLE fee_structures DROP CONSTRAINT IF EXISTS fee_structures_class_academic_year_key;
+    ALTER TABLE fee_structures DROP CONSTRAINT IF EXISTS fee_structures_class_year_unique;
+    CREATE UNIQUE INDEX IF NOT EXISTS fee_structures_class_section_year_unique
+      ON fee_structures(class, COALESCE(section, ''), academic_year);
 
     CREATE INDEX IF NOT EXISTS idx_transport_routes_vehicle ON transport_routes(vehicle_id);
     CREATE INDEX IF NOT EXISTS idx_student_transport_route ON student_transport(route_id);

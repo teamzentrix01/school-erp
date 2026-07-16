@@ -467,8 +467,21 @@ export default function ExaminationsPage() {
 
 function ScheduleModal({ exams, initial, onClose, onSave }) {
   const [form, setForm] = useState({ ...emptySchedule, ...initial });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
   const set = (key, value) =>
     setForm((current) => ({ ...current, [key]: value }));
+  const submit = async () => {
+    setSaving(true);
+    setError("");
+    try {
+      await onSave(form);
+    } catch (err) {
+      setError(err.message || "Failed to save examination entry");
+    } finally {
+      setSaving(false);
+    }
+  };
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
       <div className="w-full max-w-xl rounded-lg bg-white">
@@ -527,6 +540,9 @@ function ScheduleModal({ exams, initial, onClose, onSave }) {
           />
         </div>
         <div className="flex justify-end gap-2 border-t p-4">
+          {error && (
+            <p className="mr-auto self-center text-sm text-red-600">{error}</p>
+          )}
           <button
             onClick={onClose}
             className="rounded-lg border px-4 py-2 text-sm"
@@ -534,10 +550,11 @@ function ScheduleModal({ exams, initial, onClose, onSave }) {
             Cancel
           </button>
           <button
-            onClick={() => onSave(form)}
-            className="rounded-lg bg-orange-600 px-4 py-2 text-sm font-semibold text-white"
+            onClick={submit}
+            disabled={saving}
+            className="rounded-lg bg-orange-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
           >
-            Save Entry
+            {saving ? "Saving..." : "Save Entry"}
           </button>
         </div>
       </div>
