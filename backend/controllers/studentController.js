@@ -1,4 +1,5 @@
 const pool = require("../config/db");
+const { isStudentEligibleForExam } = require("../services/feeClearanceService");
 const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
@@ -57,7 +58,7 @@ const getProfile = async (req, res) => {
 const getAttendance = async (req, res) => {
   try {
     const student = await pool.query(
-      "SELECT id FROM students WHERE user_id=$1",
+      "SELECT id, class, section FROM students WHERE user_id=$1",
       [req.user.id],
     );
     if (student.rows.length === 0)
@@ -83,16 +84,50 @@ const getResults = async (req, res) => {
     if (student.rows.length === 0)
       return res.status(404).json({ message: "Student not found" });
 
+    const publishedExams = await pool.query(
+      `SELECT DISTINCT e.id, e.name, e.academic_year, e.class, e.section,
+              e.fee_clearance_required, e.fee_clearance_cutoff_date
+       FROM exams e
+       JOIN results r ON r.exam_id=e.id AND r.student_id=$1 AND r.published=TRUE
+       WHERE e.status='published'
+       ORDER BY e.id DESC`,
+      [student.rows[0].id],
+    );
+    const eligibleExamIds = [];
+    const lockedResults = [];
+    for (const exam of publishedExams.rows) {
+      const eligibility = await isStudentEligibleForExam(
+        student.rows[0].id,
+        exam.id,
+      );
+      if (eligibility?.result_eligible) {
+        eligibleExamIds.push(exam.id);
+      } else {
+        lockedResults.push({
+          exam_id: exam.id,
+          exam_name: exam.name,
+          academic_year: exam.academic_year,
+          class: exam.class,
+          section: exam.section,
+          clearance_status: eligibility?.clearance_status || "Pending",
+          required_amount: eligibility?.required_amount || 0,
+          paid_amount: eligibility?.paid_amount || 0,
+          pending_amount: eligibility?.pending_amount || 0,
+          fee_clearance_cutoff_date: exam.fee_clearance_cutoff_date,
+        });
+      }
+    }
+
     const result = await pool.query(
       `SELECT r.*, e.name AS exam_name, e.academic_year, e.class, e.section
        FROM results r
        LEFT JOIN exams e ON e.id = r.exam_id
        WHERE r.student_id = $1
-         AND (r.exam_id IS NULL OR r.published = TRUE)
+         AND (r.exam_id IS NULL OR (r.published = TRUE AND r.exam_id = ANY($2::int[])))
        ORDER BY r.exam_date DESC, e.created_at DESC, r.subject`,
-      [student.rows[0].id],
+      [student.rows[0].id, eligibleExamIds],
     );
-    res.json(result.rows);
+    res.json({ results: result.rows, locked_results: lockedResults });
   } catch (err) {
     res.status(500).json({ message: "Server error" });
   }

@@ -17,6 +17,7 @@ import {
   CheckCircle,
   AlertCircle,
   ArrowLeft,
+  Wallet,
 } from "lucide-react";
 
 // Imports ke baad, ROLES array se pehle — file ke top mein add karo:
@@ -34,6 +35,18 @@ const ROLES = [
     dot: "bg-orange-600",
     accent: "#f97316",
     badge: "Full Access",
+  },
+  {
+    key: "accounts",
+    label: "Accounts",
+    icon: Wallet,
+    color: "from-emerald-500 to-teal-700",
+    ring: "ring-emerald-500",
+    bg: "bg-emerald-50",
+    text: "text-emerald-700",
+    dot: "bg-emerald-600",
+    accent: "#059669",
+    badge: "Finance Access",
   },
   {
     key: "teacher",
@@ -122,7 +135,7 @@ function ForgotPasswordModal({ isOpen, onClose, activeRole, onBackToLogin }) {
   const [countdown, setCountdown] = useState(0);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+  const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
   useEffect(() => {
     let timer;
     if (countdown > 0) {
@@ -142,13 +155,11 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
     setError("");
 
     try {
-      const res = await fetch(`${API_BASE}/api/auth/forgot-password`, 
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email, role: activeRole.key }),
-        },
-      );
+      const res = await fetch(`${API_BASE}/api/auth/forgot-password`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, role: activeRole.key }),
+      });
 
       const data = await res.json();
 
@@ -255,13 +266,11 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
     setError("");
 
     try {
-      const res = await fetch(`${API_BASE}/api/auth/forgot-password`, 
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email, role: activeRole.key }),
-        },
-      );
+      const res = await fetch(`${API_BASE}/api/auth/forgot-password`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, role: activeRole.key }),
+      });
 
       const data = await res.json();
 
@@ -692,6 +701,8 @@ export default function LoginPage() {
         window.location.href = "/students/dashboard";
       } else if (userRole === "teacher") {
         window.location.href = "/teachers/dashboard";
+      } else if (userRole === "accounts") {
+        window.location.href = "/accounts/dashboard";
       } else {
         window.location.href = "/";
       }
@@ -729,7 +740,9 @@ export default function LoginPage() {
               <p className="text-white font-bold text-lg leading-none tracking-tight">
                 EduERP
               </p>
-              <p className="text-orange-100/75 text-xs">School Management System</p>
+              <p className="text-orange-100/75 text-xs">
+                School Management System
+              </p>
             </div>
           </div>
 

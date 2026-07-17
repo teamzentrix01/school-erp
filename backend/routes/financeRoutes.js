@@ -8,11 +8,12 @@ const {
 } = require("../controllers/financeController");
 
 const router = express.Router();
-router.use(protect, authorizeRoles("admin"));
+const financialAudit = require("../middleware/financialAudit");
+router.use(financialAudit, protect, authorizeRoles("admin", "accounts"));
 router.get("/dashboard", getFinanceDashboard);
 router.get("/transactions", getTransactions);
 router.post("/transactions", saveTransaction);
 router.put("/transactions/:id", saveTransaction);
-router.delete("/transactions/:id", deleteTransaction);
+router.delete("/transactions/:id", authorizeRoles("admin"), deleteTransaction);
 
 module.exports = router;

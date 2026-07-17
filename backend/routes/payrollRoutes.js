@@ -12,11 +12,12 @@ const {
 } = require("../controllers/payrollController");
 
 const router = express.Router();
-router.use(protect, authorizeRoles("admin"));
+const financialAudit = require("../middleware/financialAudit");
+router.use(financialAudit, protect, authorizeRoles("admin", "accounts"));
 router.get("/staff", getStaff);
 router.post("/staff", saveStaff);
 router.put("/staff/:id", saveStaff);
-router.delete("/staff/:id", deleteStaff);
+router.delete("/staff/:id", authorizeRoles("admin"), deleteStaff);
 router.get("/runs", getPayrollRuns);
 router.get("/runs/:id", getPayrollRun);
 router.post("/runs", generatePayroll);

@@ -3,6 +3,7 @@ const fs = require("fs");
 const path = require("path");
 const multer = require("multer");
 const { protect, authorizeRoles } = require("../middleware/authMiddleware");
+const { requestValidation } = require("../middleware/requestValidation");
 const controller = require("../controllers/examinationController");
 
 const uploadDir = path.join(__dirname, "../uploads/question-papers");
@@ -45,6 +46,7 @@ router.delete("/schedule/:id", controller.deleteSchedule);
 router.post(
   "/question-papers",
   upload.single("file"),
+  requestValidation,
   controller.uploadQuestionPaper,
 );
 router.put("/question-papers/:id", controller.updateQuestionPaper);

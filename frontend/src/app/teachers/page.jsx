@@ -156,6 +156,7 @@ const EMPTY_FORM = {
   phone: "",
   email: "",
   password: "",
+  basicSalary: "",
   teacherType: "Subject Teacher",
   classTeacherClass: "",
   classTeacherSection: "",
@@ -303,6 +304,8 @@ function AddTeacherModal({ onClose, onSaved, subjectsList, classesMeta }) {
     if (!form.name.trim()) e.name = "Name is required";
     if (!form.email.trim()) e.email = "Email is required";
     if (!form.password.trim()) e.password = "Password is required";
+    if (form.basicSalary === "" || Number(form.basicSalary) < 0)
+      e.basicSalary = "Enter a valid basic salary";
     if (!/^\d{10}$/.test(cleanPhone(form.phone)))
       e.phone = "Phone must be exactly 10 digits";
     if (!form.aadharNumber?.trim())
@@ -337,6 +340,7 @@ function AddTeacherModal({ onClose, onSaved, subjectsList, classesMeta }) {
       fd.append("phone", form.phone);
       fd.append("teacherType", form.teacherType);
       fd.append("status", form.status);
+      fd.append("salary", String(Number(form.basicSalary)));
       fd.append("aadhar_number", form.aadharNumber.replace(/\s/g, ""));
 
       if (form.teacherType === "Class Teacher" || form.teacherType === "Both") {
@@ -484,6 +488,25 @@ function AddTeacherModal({ onClose, onSaved, subjectsList, classesMeta }) {
               />
               {errors.phone && (
                 <p className="text-xs text-red-500 mt-1">{errors.phone}</p>
+              )}
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                Basic Salary <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={form.basicSalary}
+                onChange={(e) => set("basicSalary", e.target.value)}
+                placeholder="e.g. 35000"
+                className={`w-full h-10 px-3 rounded-xl border text-sm ${errors.basicSalary ? "border-red-300 bg-red-50" : "border-gray-200 bg-white"}`}
+              />
+              {errors.basicSalary && (
+                <p className="text-xs text-red-500 mt-1">
+                  {errors.basicSalary}
+                </p>
               )}
             </div>
           </div>
@@ -654,12 +677,12 @@ function AddTeacherModal({ onClose, onSaved, subjectsList, classesMeta }) {
                 value={form.aadharNumber}
                 onChange={(e) => {
                   const val = e.target.value
-                    .replace(/[^\d\s]/g, "")
-                    .slice(0, 14);
+                    .replace(/\D/g, "")
+                    .slice(0, 12);
                   set("aadharNumber", val);
                 }}
-                placeholder="XXXX XXXX XXXX"
-                maxLength={14}
+                placeholder="12-digit Aadhaar number"
+                maxLength={12}
                 className={`w-full h-10 px-3 rounded-xl border text-sm font-mono tracking-widest
         focus:outline-none focus:ring-2 focus:ring-blue-400/30 focus:border-blue-400
         ${errors.aadharNumber ? "border-red-300 bg-red-50" : "border-gray-200"}`}
@@ -825,6 +848,7 @@ function EditTeacherModal({
         existingProfilePicture: teacher.profilePicture || null,
         aadharNumber: teacher.aadharNumber || "",
         aadharImageUrl: teacher.aadharImageUrl || "",
+        basicSalary: String(teacher.basicSalary ?? 0),
       });
     }
   }, [teacher]);
@@ -866,6 +890,8 @@ function EditTeacherModal({
     if (!form.email.trim()) e.email = "Email is required";
     if (!/^\d{10}$/.test(cleanPhone(form.phone)))
       e.phone = "Phone must be exactly 10 digits";
+    if (form.basicSalary === "" || Number(form.basicSalary) < 0)
+      e.basicSalary = "Enter a valid basic salary";
     if (
       (form.teacherType === "Class Teacher" || form.teacherType === "Both") &&
       (!form.classTeacherClass || !form.classTeacherSection)
@@ -900,6 +926,7 @@ function EditTeacherModal({
       fd.append("phone", form.phone);
       fd.append("teacherType", form.teacherType);
       fd.append("status", form.status);
+      fd.append("salary", String(Number(form.basicSalary)));
 
       // ── Aadhaar number ───────────────────────────────────────────────────
       if (form.aadharNumber) {
@@ -1057,6 +1084,24 @@ function EditTeacherModal({
                 <p className="text-xs text-red-500 mt-1">{errors.phone}</p>
               )}
             </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                Basic Salary <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={form.basicSalary}
+                onChange={(e) => set("basicSalary", e.target.value)}
+                className={`w-full h-10 px-3 rounded-xl border text-sm ${errors.basicSalary ? "border-red-300 bg-red-50" : "border-gray-200"}`}
+              />
+              {errors.basicSalary && (
+                <p className="text-xs text-red-500 mt-1">
+                  {errors.basicSalary}
+                </p>
+              )}
+            </div>
           </div>
 
           {/* Email (read-only for edit) */}
@@ -1190,12 +1235,12 @@ function EditTeacherModal({
                 value={form.aadharNumber}
                 onChange={(e) => {
                   const val = e.target.value
-                    .replace(/[^\d\s]/g, "")
-                    .slice(0, 14);
+                    .replace(/\D/g, "")
+                    .slice(0, 12);
                   set("aadharNumber", val);
                 }}
-                placeholder="XXXX XXXX XXXX"
-                maxLength={14}
+                placeholder="12-digit Aadhaar number"
+                maxLength={12}
                 className={`w-full h-10 px-3 rounded-xl border text-sm font-mono tracking-widest
         focus:outline-none focus:ring-2 focus:ring-blue-400/30 focus:border-blue-400
         ${errors.aadharNumber ? "border-red-300 bg-red-50" : "border-gray-200"}`}
@@ -1731,6 +1776,12 @@ function ViewTeacherModal({ teacher: t, onClose }) {
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-400">Status</span>
                   <StatusBadge status={t.status} />
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-400">Basic Salary</span>
+                  <span className="text-gray-700 font-medium">
+                    Rs {Number(t.basicSalary || 0).toLocaleString("en-IN")}
+                  </span>
                 </div>
               </div>
             </div>

@@ -13,6 +13,25 @@ import {
 import Sidebar from "@/components/Sidebar";
 import { apiFetch, getMediaUrl } from "@/lib/api";
 
+const DOCUMENT_TYPES = [
+  "Transfer Certificate",
+  "Birth Certificate",
+  "Bonafide Certificate",
+  "Character Certificate",
+  "Migration Certificate",
+  "Marksheet / Report Card",
+  "Identity Proof",
+  "Address Proof",
+  "Caste Certificate",
+  "Income Certificate",
+  "Domicile Certificate",
+  "Medical Record",
+  "Vaccination Record",
+  "Consent Form",
+  "Certificate",
+  "Other",
+];
+
 export default function DocumentsPage() {
   const [documents, setDocuments] = useState([]);
   const [students, setStudents] = useState([]);
@@ -159,15 +178,7 @@ export default function DocumentsPage() {
                 }
                 className="rounded-lg border border-orange-200 px-3 py-2.5 text-sm"
               >
-                {[
-                  "Certificate",
-                  "Identity Proof",
-                  "Address Proof",
-                  "Transfer Certificate",
-                  "Medical Record",
-                  "Consent Form",
-                  "Other",
-                ].map((type) => (
+                {DOCUMENT_TYPES.map((type) => (
                   <option key={type}>{type}</option>
                 ))}
               </select>
@@ -223,10 +234,13 @@ export default function DocumentsPage() {
               </label>
               <input
                 type="file"
-                accept=".pdf,.jpg,.jpeg,.png,.webp"
+                accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,.xls,.xlsx,.csv,.txt"
                 onChange={(event) => setFile(event.target.files?.[0] || null)}
                 className="self-end text-sm"
               />
+              <p className="self-end text-xs text-gray-400">
+                PDF, image, Word, Excel, CSV or TXT; maximum 20MB.
+              </p>
               <button
                 onClick={upload}
                 disabled={uploading}

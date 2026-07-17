@@ -3,6 +3,7 @@ const fs = require("fs");
 const path = require("path");
 const multer = require("multer");
 const { protect, authorizeRoles } = require("../middleware/authMiddleware");
+const { requestValidation } = require("../middleware/requestValidation");
 const {
   getExams,
   createExam,
@@ -13,6 +14,8 @@ const {
   getResultSubmissions,
   reviewResultSubmission,
   publishExam,
+  getFeeClearance,
+  updateFeeClearanceOverride,
   getMarksheet,
   getUploads,
   uploadResultFile,
@@ -62,8 +65,13 @@ router.put("/exams/:id/marks", saveMarks);
 router.get("/submissions", getResultSubmissions);
 router.put("/submissions/:id/review", reviewResultSubmission);
 router.post("/exams/:id/publish", publishExam);
+router.get("/exams/:id/fee-clearance", getFeeClearance);
+router.put(
+  "/exams/:id/fee-clearance/:studentId/override",
+  updateFeeClearanceOverride,
+);
 router.get("/marksheet/:examId/:studentId", getMarksheet);
 router.get("/uploads", getUploads);
-router.post("/uploads", upload.single("file"), uploadResultFile);
+router.post("/uploads", upload.single("file"), requestValidation, uploadResultFile);
 
 module.exports = router;

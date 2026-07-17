@@ -25,6 +25,7 @@ import {
 } from "recharts";
 import Sidebar from "@/components/Sidebar";
 import { apiFetch } from "@/lib/api";
+import { useCurrentUser } from "@/lib/useCurrentUser";
 
 const today = new Date().toISOString().slice(0, 10);
 const defaultFrom = `${new Date().getFullYear()}-01-01`;
@@ -45,6 +46,7 @@ const currency = (value) =>
   })}`;
 
 export default function FinancePage() {
+  const isAdmin = useCurrentUser()?.role === "admin";
   const [dashboard, setDashboard] = useState(null);
   const [transactions, setTransactions] = useState([]);
   const [range, setRange] = useState({ from: defaultFrom, to: today });
@@ -195,12 +197,18 @@ export default function FinancePage() {
           ) : (
             <>
               <section className="grid gap-5 lg:grid-cols-[2fr_1fr]">
-                <div className="rounded-lg border border-orange-200 bg-white p-4">
+                <div className="min-w-0 rounded-lg border border-orange-200 bg-white p-4">
                   <h2 className="font-bold text-gray-900">
                     Monthly Income vs Expense
                   </h2>
-                  <div className="mt-4 h-72">
-                    <ResponsiveContainer width="100%" height="100%">
+                  <div className="mt-4 h-72 min-h-72 min-w-0">
+                    <ResponsiveContainer
+                      width="100%"
+                      height="100%"
+                      minWidth={0}
+                      minHeight={288}
+                      initialDimension={{ width: 640, height: 288 }}
+                    >
                       <BarChart data={dashboard?.trend || []}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#fed7aa" />
                         <XAxis dataKey="month" fontSize={11} />
@@ -288,12 +296,14 @@ export default function FinancePage() {
                           >
                             <Pencil size={14} />
                           </button>
-                          <button
-                            onClick={() => remove(item.id)}
-                            className="p-2 text-red-500"
-                          >
-                            <Trash2 size={14} />
-                          </button>
+                          {isAdmin && (
+                            <button
+                              onClick={() => remove(item.id)}
+                              className="p-2 text-red-500"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          )}
                         </td>
                       </tr>
                     ))}

@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import Sidebar from "@/components/Sidebar";
 import { apiFetch } from "@/lib/api";
+import { useCurrentUser } from "@/lib/useCurrentUser";
 
 const current = new Date();
 const emptyStaff = {
@@ -31,6 +32,7 @@ const emptyStaff = {
 };
 
 export default function PayrollPage() {
+  const isAdmin = useCurrentUser()?.role === "admin";
   const [tab, setTab] = useState("payroll");
   const [employees, setEmployees] = useState({ staff: [], teachers: [] });
   const [runs, setRuns] = useState([]);
@@ -336,6 +338,7 @@ export default function PayrollPage() {
                 type="staff"
                 onEdit={setStaffModal}
                 onDelete={removeStaff}
+                canDelete={isAdmin}
               />
             </>
           ) : (
@@ -434,7 +437,7 @@ function PayrollRow({ entry, onSave, onPay }) {
   );
 }
 
-function EmployeeTable({ rows, type, onEdit, onDelete }) {
+function EmployeeTable({ rows, type, onEdit, onDelete, canDelete = false }) {
   return (
     <div className="overflow-x-auto rounded-lg border border-orange-200 bg-white">
       <table className="w-full min-w-[800px] text-sm">
@@ -481,12 +484,14 @@ function EmployeeTable({ rows, type, onEdit, onDelete }) {
                     >
                       <Pencil size={14} />
                     </button>
-                    <button
-                      onClick={() => onDelete(item.id)}
-                      className="p-2 text-red-500"
-                    >
-                      <Trash2 size={14} />
-                    </button>
+                    {canDelete && (
+                      <button
+                        onClick={() => onDelete(item.id)}
+                        className="p-2 text-red-500"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    )}
                   </div>
                 )}
               </td>

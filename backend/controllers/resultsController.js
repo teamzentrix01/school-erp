@@ -1,5 +1,6 @@
 const fs = require("fs");
 const pool = require("../config/db");
+const { getExamClearance } = require("../services/feeClearanceService");
 
 const gradeFor = (marks, total) => {
   const percentage =
@@ -394,6 +395,10 @@ const createExam = async (req, res) => {
     start_date,
     end_date,
     default_total_marks = 100,
+    fee_clearance_required = true,
+    fee_clearance_mode = "full",
+    fee_required_amount = 0,
+    fee_clearance_cutoff_date,
   } = req.body;
   if (!name || !exam_type || !academic_year || !className) {
     return res
@@ -406,12 +411,23 @@ const createExam = async (req, res) => {
   if (start_date && end_date && start_date > end_date) {
     return res.status(400).json({ message: "Exam end date must be after start date" });
   }
+  if (!["full", "amount"].includes(fee_clearance_mode)) {
+    return res.status(400).json({ message: "Fee clearance mode must be full or amount" });
+  }
+  if (
+    fee_clearance_required &&
+    fee_clearance_mode === "amount" &&
+    Number(fee_required_amount) <= 0
+  ) {
+    return res.status(400).json({ message: "Required fee amount must be greater than zero" });
+  }
   try {
     const result = await pool.query(
       `INSERT INTO exams
          (name, exam_type, academic_year, class, section, start_date, end_date,
-          default_total_marks, created_by)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+          default_total_marks, created_by, fee_clearance_required,
+          fee_clearance_mode, fee_required_amount, fee_clearance_cutoff_date)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
        RETURNING *`,
       [
         name.trim(),
@@ -423,6 +439,10 @@ const createExam = async (req, res) => {
         end_date || null,
         Number(default_total_marks),
         req.user.id,
+        Boolean(fee_clearance_required),
+        fee_clearance_mode,
+        Number(fee_required_amount || 0),
+        fee_clearance_cutoff_date || null,
       ],
     );
     res.status(201).json(result.rows[0]);
@@ -443,6 +463,10 @@ const updateExam = async (req, res) => {
     end_date,
     default_total_marks,
     status,
+    fee_clearance_required,
+    fee_clearance_mode,
+    fee_required_amount,
+    fee_clearance_cutoff_date,
   } = req.body;
   try {
     if (!isValidDateString(start_date) || !isValidDateString(end_date)) {
@@ -451,14 +475,28 @@ const updateExam = async (req, res) => {
     if (start_date && end_date && start_date > end_date) {
       return res.status(400).json({ message: "Exam end date must be after start date" });
     }
+    if (fee_clearance_mode && !["full", "amount"].includes(fee_clearance_mode)) {
+      return res.status(400).json({ message: "Fee clearance mode must be full or amount" });
+    }
+    if (
+      fee_clearance_required !== false &&
+      fee_clearance_mode === "amount" &&
+      Number(fee_required_amount) <= 0
+    ) {
+      return res.status(400).json({ message: "Required fee amount must be greater than zero" });
+    }
     const result = await pool.query(
       `UPDATE exams SET
          name = COALESCE($1, name), exam_type = COALESCE($2, exam_type),
          academic_year = COALESCE($3, academic_year), class = COALESCE($4, class),
          section = $5, start_date = $6, end_date = $7,
          default_total_marks = COALESCE($8, default_total_marks),
-         status = COALESCE($9, status), updated_at = NOW()
-       WHERE id = $10 RETURNING *`,
+         status = COALESCE($9, status),
+         fee_clearance_required = COALESCE($10, fee_clearance_required),
+         fee_clearance_mode = COALESCE($11, fee_clearance_mode),
+         fee_required_amount = COALESCE($12, fee_required_amount),
+         fee_clearance_cutoff_date = $13, updated_at = NOW()
+       WHERE id = $14 RETURNING *`,
       [
         name,
         exam_type,
@@ -469,6 +507,10 @@ const updateExam = async (req, res) => {
         end_date || null,
         default_total_marks == null ? null : Number(default_total_marks),
         status,
+        fee_clearance_required == null ? null : Boolean(fee_clearance_required),
+        fee_clearance_mode || null,
+        fee_required_amount == null ? null : Number(fee_required_amount),
+        fee_clearance_cutoff_date || null,
         req.params.id,
       ],
     );
@@ -728,13 +770,68 @@ const publishExam = async (req, res) => {
         [req.params.id],
       );
       await client.query("COMMIT");
-      res.json(exam.rows[0]);
+      const clearance = await getExamClearance(req.params.id);
+      res.json({
+        exam: exam.rows[0],
+        fee_clearance: clearance?.summary || null,
+        message: clearance?.summary?.blocked
+          ? `Exam published. ${clearance.summary.eligible} result(s) available and ${clearance.summary.blocked} locked for pending fees.`
+          : "Exam published. All eligible students can view their results.",
+      });
     } finally {
       client.release();
     }
   } catch (error) {
     console.error("publishExam:", error);
     res.status(500).json({ message: "Failed to publish exam" });
+  }
+};
+
+const getFeeClearance = async (req, res) => {
+  try {
+    const clearance = await getExamClearance(req.params.id);
+    if (!clearance) return res.status(404).json({ message: "Exam not found" });
+    res.json(clearance);
+  } catch (error) {
+    console.error("getFeeClearance:", error);
+    res.status(500).json({ message: "Failed to load result fee clearance" });
+  }
+};
+
+const updateFeeClearanceOverride = async (req, res) => {
+  const { allowed, reason } = req.body;
+  if (allowed && !String(reason || "").trim()) {
+    return res.status(400).json({ message: "Override reason is required" });
+  }
+  try {
+    const student = await pool.query("SELECT id FROM students WHERE id=$1", [
+      req.params.studentId,
+    ]);
+    if (!student.rows.length) return res.status(404).json({ message: "Student not found" });
+
+    if (allowed) {
+      await pool.query(
+        `INSERT INTO result_fee_overrides
+           (exam_id, student_id, reason, active, approved_by)
+         VALUES ($1,$2,$3,TRUE,$4)
+         ON CONFLICT (exam_id, student_id)
+         DO UPDATE SET reason=EXCLUDED.reason, active=TRUE,
+                       approved_by=EXCLUDED.approved_by, updated_at=NOW()`,
+        [req.params.id, req.params.studentId, String(reason).trim(), req.user.id],
+      );
+    } else {
+      await pool.query(
+        `UPDATE result_fee_overrides
+         SET active=FALSE, approved_by=$3, updated_at=NOW()
+         WHERE exam_id=$1 AND student_id=$2`,
+        [req.params.id, req.params.studentId, req.user.id],
+      );
+    }
+    const clearance = await getExamClearance(req.params.id);
+    res.json(clearance);
+  } catch (error) {
+    console.error("updateFeeClearanceOverride:", error);
+    res.status(500).json({ message: "Failed to update fee override" });
   }
 };
 
@@ -945,6 +1042,8 @@ module.exports = {
   getResultSubmissions,
   reviewResultSubmission,
   publishExam,
+  getFeeClearance,
+  updateFeeClearanceOverride,
   getMarksheet,
   getUploads,
   uploadResultFile,

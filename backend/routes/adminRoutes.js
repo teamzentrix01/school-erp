@@ -5,6 +5,7 @@ const path     = require("path");
 const fs       = require("fs");
 
 const { protect, authorizeRoles } = require("../middleware/authMiddleware");
+const { requestValidation } = require("../middleware/requestValidation");
 
 // ── Import upload middleware (for students photos)
 const studentUpload = require("../middleware/upload");   // uploads/students/
@@ -149,11 +150,11 @@ router.get("/attendance/trend", async (req, res) => {
 router.get   ("/teachers/meta",        getTeacherMeta);
 router.get   ("/teachers",             getAllTeachers);
 
-router.post  ("/teachers",             teacherUpload.single("profilePicture"), createTeacher);
+router.post  ("/teachers",             teacherUpload.single("profilePicture"), requestValidation, createTeacher);
 router.post("/teachers/:id/aadhar-image",  aadharTeacherUpload.single("aadhar_image"), uploadTeacherAadharImage);
 router.put ("/teachers/:id/aadhar-number", updateTeacherAadharNumber);
 
-router.put   ("/teachers/:id",         teacherUpload.single("profilePicture"), updateTeacher);
+router.put   ("/teachers/:id",         teacherUpload.single("profilePicture"), requestValidation, updateTeacher);
 router.delete("/teachers/:id",         deleteTeacher);
 
 // ── Classes

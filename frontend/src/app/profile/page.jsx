@@ -3,17 +3,20 @@
 import { useCallback, useEffect, useState } from "react";
 import Sidebar from "@/components/Sidebar";
 import PortalTopbar from "@/components/PortalTopbar";
-import { apiFetch, getUser, logout } from "@/lib/api";
+import { apiFetch, logout } from "@/lib/api";
+import { useCurrentUser } from "@/lib/useCurrentUser";
 import { LogOut, Mail, Shield, User } from "lucide-react";
 
 export default function AdminProfilePage() {
-  const [user, setUser] = useState(() => getUser());
+  const cookieUser = useCurrentUser();
+  const [freshUser, setFreshUser] = useState(null);
+  const user = freshUser || cookieUser;
   const [error, setError] = useState("");
 
   const load = useCallback(async () => {
     try {
       const fresh = await apiFetch("/auth/me");
-      if (fresh) setUser(fresh);
+      if (fresh) setFreshUser(fresh);
       setError("");
     } catch {
       setError("Could not refresh profile details.");

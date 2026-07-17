@@ -16,6 +16,7 @@ import {
   RefreshCw,
   Save,
   Send,
+  ShieldCheck,
   Trash2,
   Undo2,
   Upload,
@@ -62,6 +63,11 @@ function ExamModal({ classes, initial = null, onClose, onSaved }) {
     start_date: initial?.start_date?.slice(0, 10) || "",
     end_date: initial?.end_date?.slice(0, 10) || "",
     default_total_marks: initial?.default_total_marks || 100,
+    fee_clearance_required: initial?.fee_clearance_required ?? true,
+    fee_clearance_mode: initial?.fee_clearance_mode || "full",
+    fee_required_amount: initial?.fee_required_amount || "",
+    fee_clearance_cutoff_date:
+      initial?.fee_clearance_cutoff_date?.slice(0, 10) || "",
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -89,7 +95,7 @@ function ExamModal({ classes, initial = null, onClose, onSaved }) {
 
   return (
     <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
-      <div className="w-full max-w-xl bg-white rounded-lg shadow-2xl">
+      <div className="max-h-[92vh] w-full max-w-xl overflow-y-auto bg-white rounded-lg shadow-2xl">
         <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
           <div>
             <h2 className="font-bold text-gray-900">
@@ -204,6 +210,56 @@ function ExamModal({ classes, initial = null, onClose, onSaved }) {
               onChange={(e) => set("default_total_marks", e.target.value)}
             />
           </label>
+          <label className="sm:col-span-2 flex items-start gap-3 rounded-lg border border-blue-100 bg-blue-50 p-3 text-sm">
+            <input
+              type="checkbox"
+              className="mt-0.5"
+              checked={form.fee_clearance_required}
+              onChange={(e) => set("fee_clearance_required", e.target.checked)}
+            />
+            <span>
+              <strong className="block text-gray-800">Require fee clearance to view result</strong>
+              <span className="text-xs text-gray-500">
+                Marks remain saved, but students with pending dues see a locked result.
+              </span>
+            </span>
+          </label>
+          {form.fee_clearance_required && (
+            <>
+              <label className="text-xs font-semibold text-gray-500">
+                Clearance requirement
+                <select
+                  className={`${inputClass} mt-1.5`}
+                  value={form.fee_clearance_mode}
+                  onChange={(e) => set("fee_clearance_mode", e.target.value)}
+                >
+                  <option value="full">Full academic-year fee</option>
+                  <option value="amount">Minimum paid amount</option>
+                </select>
+              </label>
+              {form.fee_clearance_mode === "amount" && (
+                <label className="text-xs font-semibold text-gray-500">
+                  Required paid amount (₹)
+                  <input
+                    type="number"
+                    min="1"
+                    className={`${inputClass} mt-1.5`}
+                    value={form.fee_required_amount}
+                    onChange={(e) => set("fee_required_amount", e.target.value)}
+                  />
+                </label>
+              )}
+              <label className="text-xs font-semibold text-gray-500">
+                Fee clearance cut-off date
+                <input
+                  type="date"
+                  className={`${inputClass} mt-1.5`}
+                  value={form.fee_clearance_cutoff_date}
+                  onChange={(e) => set("fee_clearance_cutoff_date", e.target.value)}
+                />
+              </label>
+            </>
+          )}
         </div>
         {error && (
           <p className="mx-5 mb-3 px-3 py-2 bg-red-50 text-red-600 rounded-lg text-sm">
@@ -253,7 +309,8 @@ function ExamsTab({ exams, classes, load, selectExam }) {
     )
       return;
     try {
-      await apiFetch(`/exams/${id}/publish`, { method: "POST" });
+      const result = await apiFetch(`/exams/${id}/publish`, { method: "POST" });
+      window.alert(result.message || "Exam published successfully.");
       load();
     } catch (error) {
       window.alert(error.message);
@@ -295,6 +352,13 @@ function ExamsTab({ exams, classes, load, selectExam }) {
                   <p className="font-semibold text-gray-900">{exam.name}</p>
                   <p className="text-xs text-gray-400">
                     {exam.exam_type} - {exam.academic_year}
+                  </p>
+                  <p className="mt-1 text-[11px] font-medium text-blue-600">
+                    {exam.fee_clearance_required
+                      ? exam.fee_clearance_mode === "amount"
+                        ? `Result lock: ₹${Number(exam.fee_required_amount || 0).toLocaleString("en-IN")} required`
+                        : "Result lock: full fee required"
+                      : "Fee clearance not required"}
                   </p>
                 </td>
                 <td className="px-4 py-3">
@@ -759,6 +823,188 @@ function ReviewsTab() {
   );
 }
 
+function FeeClearanceTab({ exams }) {
+  const [examId, setExamId] = useState("");
+  const [clearance, setClearance] = useState(null);
+  const [filter, setFilter] = useState("all");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const load = useCallback(async (id = examId) => {
+    if (!id) {
+      setClearance(null);
+      return;
+    }
+    setLoading(true);
+    setError("");
+    try {
+      setClearance(await apiFetch(`/exams/${id}/fee-clearance`));
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [examId]);
+
+  useEffect(() => {
+    if (examId || !exams.length) return undefined;
+    const timer = setTimeout(() => setExamId(String(exams[0].id)), 0);
+    return () => clearTimeout(timer);
+  }, [examId, exams]);
+
+  useEffect(() => {
+    if (!examId) return;
+    const timer = setTimeout(() => load(examId), 0);
+    return () => clearTimeout(timer);
+  }, [examId, load]);
+
+  const setOverride = async (student, allowed) => {
+    let reason = "";
+    if (allowed) {
+      reason = window.prompt(
+        `Reason for allowing ${student.student_name}'s result despite pending fees:`,
+      )?.trim();
+      if (!reason) return;
+    } else if (!window.confirm(`Remove result override for ${student.student_name}?`)) {
+      return;
+    }
+    try {
+      setClearance(
+        await apiFetch(
+          `/exams/${examId}/fee-clearance/${student.student_id}/override`,
+          {
+            method: "PUT",
+            body: JSON.stringify({ allowed, reason }),
+          },
+        ),
+      );
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const rows = (clearance?.rows || []).filter((row) => {
+    if (filter === "eligible") return row.result_eligible;
+    if (filter === "blocked") return !row.result_eligible;
+    if (filter === "overrides") return row.overridden;
+    return true;
+  });
+  const money = (value) => `₹${Number(value || 0).toLocaleString("en-IN")}`;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-col gap-3 rounded-lg border border-gray-100 bg-white p-4 sm:flex-row sm:items-end">
+        <label className="flex-1 text-xs font-semibold text-gray-500">
+          Examination
+          <select
+            className="mt-1.5 w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm"
+            value={examId}
+            onChange={(event) => setExamId(event.target.value)}
+          >
+            <option value="">Select exam</option>
+            {exams.map((exam) => (
+              <option key={exam.id} value={exam.id}>
+                {exam.name} - {exam.class}{exam.section ? `-${exam.section}` : ""}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="text-xs font-semibold text-gray-500">
+          Status
+          <select
+            className="mt-1.5 w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm"
+            value={filter}
+            onChange={(event) => setFilter(event.target.value)}
+          >
+            <option value="all">All students</option>
+            <option value="eligible">Result eligible</option>
+            <option value="blocked">Result blocked</option>
+            <option value="overrides">Admin overrides</option>
+          </select>
+        </label>
+        <button
+          onClick={() => load()}
+          disabled={!examId || loading}
+          className="flex items-center justify-center gap-2 rounded-lg border border-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-600 disabled:opacity-50"
+        >
+          <RefreshCw size={15} className={loading ? "animate-spin" : ""} /> Refresh
+        </button>
+      </div>
+
+      {error && <p className="rounded-lg bg-red-50 p-3 text-sm text-red-600">{error}</p>}
+
+      {clearance && (
+        <>
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+            {[
+              ["Students", clearance.summary.total],
+              ["Eligible", clearance.summary.eligible],
+              ["Blocked", clearance.summary.blocked],
+              ["Overrides", clearance.summary.overrides],
+              ["Pending dues", money(clearance.summary.pending_amount)],
+            ].map(([label, value]) => (
+              <div key={label} className="rounded-lg border border-gray-100 bg-white p-4">
+                <p className="text-xl font-bold text-gray-900">{value}</p>
+                <p className="mt-1 text-xs text-gray-500">{label}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="overflow-x-auto rounded-lg border border-gray-100 bg-white">
+            <table className="w-full min-w-[980px] text-sm">
+              <thead className="bg-gray-50 text-xs text-gray-500">
+                <tr>
+                  {["Student", "Class", "Required", "Paid", "Pending", "Clearance", "Admin action"].map((heading) => (
+                    <th key={heading} className="px-4 py-3 text-left">{heading}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {rows.map((row) => (
+                  <tr key={row.student_id}>
+                    <td className="px-4 py-3">
+                      <p className="font-semibold text-gray-900">{row.student_name}</p>
+                      <p className="text-xs text-gray-400">Roll {row.roll_number || "-"}</p>
+                    </td>
+                    <td className="px-4 py-3">{row.class}-{row.section}</td>
+                    <td className="px-4 py-3">{money(row.required_amount)}</td>
+                    <td className="px-4 py-3 text-green-700">{money(row.paid_amount)}</td>
+                    <td className="px-4 py-3 text-red-600">{money(row.pending_amount)}</td>
+                    <td className="px-4 py-3">
+                      <span className={`rounded-full px-2 py-1 text-xs font-semibold ${row.result_eligible ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"}`}>
+                        {row.clearance_status}
+                      </span>
+                      {row.override_reason && (
+                        <p className="mt-1 max-w-56 text-xs text-gray-400" title={row.override_reason}>
+                          {row.override_reason}
+                        </p>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      {row.overridden ? (
+                        <button onClick={() => setOverride(row, false)} className="rounded-lg bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700">
+                          Remove override
+                        </button>
+                      ) : !row.result_eligible ? (
+                        <button onClick={() => setOverride(row, true)} className="rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700">
+                          Allow result
+                        </button>
+                      ) : (
+                        <span className="text-xs text-gray-400">Automatic</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {!rows.length && <p className="p-12 text-center text-sm text-gray-400">No students match this filter.</p>}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 function MarksheetTab({ exams }) {
   const [examId, setExamId] = useState("");
   const [students, setStudents] = useState([]);
@@ -1075,6 +1321,7 @@ export default function ResultsPage() {
     ["exams", "Exams", Award],
     ["marks", "Marks Entry", BookOpen],
     ["reviews", "Teacher Reviews", ClipboardCheck],
+    ["clearance", "Fee Clearance", ShieldCheck],
     ["marksheet", "Marksheet", FileText],
     ["uploads", "Uploads", FileSpreadsheet],
   ];
@@ -1159,6 +1406,7 @@ export default function ResultsPage() {
                 />
               )}
               {tab === "reviews" && <ReviewsTab />}
+              {tab === "clearance" && <FeeClearanceTab exams={exams} />}
               {tab === "marksheet" && <MarksheetTab exams={exams} />}
               {tab === "uploads" && <UploadsTab exams={exams} />}
             </>

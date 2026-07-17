@@ -38,7 +38,9 @@ function avatarColor(name = "") {
 }
 
 function normalizeClassName(value = "") {
-  return String(value).replace(/^Class\s+/i, "").trim();
+  return String(value)
+    .replace(/^Class\s+/i, "")
+    .trim();
 }
 
 // ─── Normalize DB row → UI shape ──────────────────────────────────────────────
@@ -477,13 +479,42 @@ const EMPTY_FORM = {
   aadharImageUrl: "",
 };
 
-const cleanPhone = (value) => String(value || "").replace(/\D/g, "").slice(0, 10);
+const STUDENT_DOCUMENT_TYPES = [
+  "Transfer Certificate",
+  "Birth Certificate",
+  "Bonafide Certificate",
+  "Character Certificate",
+  "Migration Certificate",
+  "Marksheet / Report Card",
+  "Identity Proof",
+  "Address Proof",
+  "Caste Certificate",
+  "Income Certificate",
+  "Domicile Certificate",
+  "Medical Record",
+  "Vaccination Record",
+  "Consent Form",
+  "Certificate",
+  "Other",
+];
+
+const cleanPhone = (value) =>
+  String(value || "")
+    .replace(/\D/g, "")
+    .slice(0, 10);
 
 const isValidDateValue = (value) => {
   if (!value) return true;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
-  const year = Number(value.slice(0, 4));
-  return year >= 1900 && year <= 2100;
+  const [year, month, day] = value.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return (
+    year >= 1900 &&
+    value <= new Date().toISOString().slice(0, 10) &&
+    date.getUTCFullYear() === year &&
+    date.getUTCMonth() === month - 1 &&
+    date.getUTCDate() === day
+  );
 };
 
 function AddEditModal({ student, classMeta, onClose, onSave, saving }) {
@@ -526,9 +557,18 @@ function AddEditModal({ student, classMeta, onClose, onSave, saving }) {
 
   const handleDocumentsChange = (event) => {
     const files = Array.from(event.target.files || []);
-    const invalid = files.find((file) => file.size > 10 * 1024 * 1024);
+    const allowedExtensions = /\.(pdf|jpe?g|png|webp|docx?|xlsx?|csv|txt)$/i;
+    const unsupported = files.find(
+      (file) => !allowedExtensions.test(file.name),
+    );
+    if (unsupported) {
+      alert(`${unsupported.name} is not a supported document format.`);
+      event.target.value = "";
+      return;
+    }
+    const invalid = files.find((file) => file.size > 20 * 1024 * 1024);
     if (invalid) {
-      alert(`${invalid.name} must be under 10MB.`);
+      alert(`${invalid.name} must be 20MB or smaller.`);
       event.target.value = "";
       return;
     }
@@ -587,7 +627,8 @@ function AddEditModal({ student, classMeta, onClose, onSave, saving }) {
     if (!form.classId) return alert("Please select a class.");
     if (!isEdit && !form.email.trim()) return alert("Email is required.");
     if (!isEdit && !form.password.trim()) return alert("Password is required.");
-    if (!isValidDateValue(form.dob)) return alert("Date of birth must use a valid 4-digit year.");
+    if (!isValidDateValue(form.dob))
+      return alert("Date of birth must use a valid 4-digit year.");
     if (form.phone && !/^\d{10}$/.test(cleanPhone(form.phone)))
       return alert("Student phone must be exactly 10 digits.");
     if (form.parentContact && !/^\d{10}$/.test(cleanPhone(form.parentContact)))
@@ -775,7 +816,7 @@ function AddEditModal({ student, classMeta, onClose, onSave, saving }) {
           onChange={(v) => set("dob", v)}
           type="date"
           min="1900-01-01"
-          max="2100-12-31"
+          max={new Date().toISOString().slice(0, 10)}
         />
         <Field
           label="Phone"
@@ -807,12 +848,11 @@ function AddEditModal({ student, classMeta, onClose, onSave, saving }) {
             type="text"
             value={form.aadharNumber}
             onChange={(e) => {
-              // Allow digits and spaces only, max 14 chars (12 digits + 2 spaces)
-              const val = e.target.value.replace(/[^\d\s]/g, "").slice(0, 14);
+              const val = e.target.value.replace(/\D/g, "").slice(0, 12);
               set("aadharNumber", val);
             }}
-            placeholder="XXXX XXXX XXXX"
-            maxLength={14}
+            placeholder="12-digit Aadhaar number"
+            maxLength={12}
             className="field-input font-mono tracking-widest"
           />
           <p className="text-xs text-gray-400 mt-1">12-digit Aadhaar number</p>
@@ -878,18 +918,19 @@ function AddEditModal({ student, classMeta, onClose, onSave, saving }) {
         <div className="sm:col-span-2">
           <label className="field-label">Additional Student Documents</label>
           <label className="flex cursor-pointer items-center justify-center rounded-xl border-2 border-dashed border-orange-200 bg-orange-50/40 px-4 py-5 text-sm font-semibold text-orange-700 hover:bg-orange-50">
-            Select PDF or image documents
+            Select student documents
             <input
               type="file"
               multiple
-              accept="application/pdf,image/jpeg,image/png,image/webp"
+              accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,.xls,.xlsx,.csv,.txt"
               onChange={handleDocumentsChange}
               className="hidden"
             />
           </label>
           <p className="mt-1 text-xs text-gray-400">
             Birth certificate, transfer certificate, medical record, consent
-            form, or other documents. Maximum 10MB per file.
+            form, marksheet, Word/Excel file, or other documents. Maximum 20MB
+            per file.
           </p>
           {documentFiles.length > 0 && (
             <div className="mt-3 space-y-2">
@@ -917,15 +958,7 @@ function AddEditModal({ student, classMeta, onClose, onSave, saving }) {
                     }
                     className="field-input"
                   >
-                    {[
-                      "Certificate",
-                      "Identity Proof",
-                      "Address Proof",
-                      "Transfer Certificate",
-                      "Medical Record",
-                      "Consent Form",
-                      "Other",
-                    ].map((type) => (
+                    {STUDENT_DOCUMENT_TYPES.map((type) => (
                       <option key={type}>{type}</option>
                     ))}
                   </select>

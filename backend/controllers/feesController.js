@@ -44,6 +44,34 @@ const getStudentFeeRecord = async (userId) => {
   return { studentId, feeRecord: feeRes.rows[0] || null };
 };
 
+// Limited lookup for fee collection. It exposes only class/section/count data,
+// so Accounts users do not need access to the admin class-management routes.
+const getFeeClasses = async (_req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT
+        c.id,
+        c.class_name,
+        c.grade,
+        c.section,
+        COUNT(DISTINCT s.id)::int AS student_count
+      FROM classes c
+      LEFT JOIN students s
+        ON s.class_id = c.id
+        OR (
+          (s.class = c.grade OR s.class = c.class_name OR s.class = CONCAT('Class ', c.grade))
+          AND COALESCE(s.section, '') = COALESCE(c.section, '')
+        )
+      GROUP BY c.id, c.class_name, c.grade, c.section
+      ORDER BY COALESCE(c.grade, c.class_name), c.section
+    `);
+    res.json(result.rows);
+  } catch (error) {
+    console.error("getFeeClasses error:", error);
+    res.status(500).json({ message: "Unable to load fee classes" });
+  }
+};
+
 // ── GET /api/fees/student/fees ─────────────────────────────────────────────────
 const getStudentFees = async (req, res) => {
   try {
@@ -772,6 +800,7 @@ const getStats = async (req, res) => {
 };
 
 module.exports = {
+  getFeeClasses,
   getStudentFees,
   createOrder,
   verifyPayment,

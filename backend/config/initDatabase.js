@@ -2,6 +2,31 @@ const pool = require("./db");
 
 async function initDatabase() {
   await pool.query(`
+    ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;
+    ALTER TABLE users ADD CONSTRAINT users_role_check
+      CHECK (role IN ('admin','teacher','student','accounts'));
+
+    CREATE TABLE IF NOT EXISTS accounts_profiles (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      employee_code VARCHAR(40) UNIQUE NOT NULL,
+      phone VARCHAR(30),
+      created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS financial_audit_logs (
+      id BIGSERIAL PRIMARY KEY,
+      user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      user_role VARCHAR(30) NOT NULL,
+      method VARCHAR(10) NOT NULL,
+      path TEXT NOT NULL,
+      status_code INTEGER NOT NULL,
+      details JSONB NOT NULL DEFAULT '{}'::jsonb,
+      created_at TIMESTAMP NOT NULL DEFAULT NOW()
+    );
+
     CREATE TABLE IF NOT EXISTS transport_vehicles (
       id SERIAL PRIMARY KEY,
       registration_number VARCHAR(40) UNIQUE NOT NULL,
@@ -503,9 +528,29 @@ async function initDatabase() {
     ALTER TABLE results ADD COLUMN IF NOT EXISTS published BOOLEAN NOT NULL DEFAULT FALSE;
     ALTER TABLE results ADD COLUMN IF NOT EXISTS attendance_status VARCHAR(20) NOT NULL DEFAULT 'Present';
     ALTER TABLE results ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT NOW();
+    ALTER TABLE exams ADD COLUMN IF NOT EXISTS fee_clearance_required BOOLEAN NOT NULL DEFAULT TRUE;
+    ALTER TABLE exams ADD COLUMN IF NOT EXISTS fee_clearance_mode VARCHAR(20) NOT NULL DEFAULT 'full';
+    ALTER TABLE exams ADD COLUMN IF NOT EXISTS fee_required_amount NUMERIC(12,2) NOT NULL DEFAULT 0;
+    ALTER TABLE exams ADD COLUMN IF NOT EXISTS fee_clearance_cutoff_date DATE;
+    CREATE TABLE IF NOT EXISTS result_fee_overrides (
+      id SERIAL PRIMARY KEY,
+      exam_id INTEGER NOT NULL REFERENCES exams(id) ON DELETE CASCADE,
+      student_id INTEGER NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+      reason TEXT NOT NULL,
+      active BOOLEAN NOT NULL DEFAULT TRUE,
+      approved_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+      UNIQUE(exam_id, student_id)
+    );
     ALTER TABLE fee_payments ADD COLUMN IF NOT EXISTS payment_mode VARCHAR(30);
     ALTER TABLE student_fees ADD COLUMN IF NOT EXISTS hostel_fee NUMERIC(12,2) NOT NULL DEFAULT 0;
     ALTER TABLE student_fees ADD COLUMN IF NOT EXISTS mess_fee NUMERIC(12,2) NOT NULL DEFAULT 0;
+    ALTER TABLE teachers ADD COLUMN IF NOT EXISTS salary NUMERIC(12,2) DEFAULT 0;
+    ALTER TABLE teachers ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT NOW();
+    UPDATE teachers SET salary = 0 WHERE salary IS NULL;
+    ALTER TABLE teachers ALTER COLUMN salary SET DEFAULT 0;
+    ALTER TABLE teachers ALTER COLUMN salary SET NOT NULL;
     ALTER TABLE fee_structures ADD COLUMN IF NOT EXISTS section VARCHAR(30);
     ALTER TABLE fee_structures ADD COLUMN IF NOT EXISTS due_date DATE;
     ALTER TABLE fee_structures DROP CONSTRAINT IF EXISTS fee_structures_class_academic_year_key;
@@ -517,6 +562,7 @@ async function initDatabase() {
     CREATE INDEX IF NOT EXISTS idx_student_transport_route ON student_transport(route_id);
     CREATE INDEX IF NOT EXISTS idx_results_exam ON results(exam_id);
     CREATE INDEX IF NOT EXISTS idx_results_student_exam ON results(student_id, exam_id);
+    CREATE INDEX IF NOT EXISTS idx_result_fee_overrides_exam ON result_fee_overrides(exam_id);
     CREATE INDEX IF NOT EXISTS idx_result_submissions_status ON result_submissions(status);
     CREATE INDEX IF NOT EXISTS idx_fee_payments_paid_on ON fee_payments(paid_on);
     CREATE INDEX IF NOT EXISTS idx_hostel_rooms_hostel ON hostel_rooms(hostel_id);

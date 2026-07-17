@@ -6,8 +6,11 @@ const fs = require("fs");
 const { protect, authorizeRoles } = require("../middleware/authMiddleware");
 const verifyToken = protect;
 const requireRole = (...roles) => authorizeRoles(...roles);
+const financialAudit = require("../middleware/financialAudit");
+const { requestValidation } = require("../middleware/requestValidation");
 
 const {
+  getFeeClasses,
   getStudentFees,
   createOrder,
   verifyPayment,
@@ -22,6 +25,8 @@ const {
   getAllPayments,
   getStats,
 } = require("../controllers/feesController");
+
+router.use(financialAudit);
 
 // ── Multer for receipt uploads ────────────────────────────────────────────────
 const receiptDir = path.join(__dirname, "../uploads/receipts");
@@ -50,7 +55,13 @@ const receiptUpload = multer({
 });
 
 // ── Stats (admin + teacher) ───────────────────────────────────────────────────
-router.get("/stats", verifyToken, requireRole("admin"), getStats);
+router.get("/stats", verifyToken, requireRole("admin", "accounts"), getStats);
+router.get(
+  "/classes",
+  verifyToken,
+  requireRole("admin", "accounts"),
+  getFeeClasses,
+);
 
 // ── Student routes ────────────────────────────────────────────────────────────
 router.get(
@@ -76,6 +87,7 @@ router.post(
   verifyToken,
   requireRole("student"),
   receiptUpload.single("receipt"),
+  requestValidation,
   uploadReceipt,
 );
 
@@ -83,46 +95,51 @@ router.post(
 router.get(
   "/admin/pending-approvals",
   verifyToken,
-  requireRole("admin"),
+  requireRole("admin", "accounts"),
   getPendingApprovals,
 );
 router.get(
   "/admin/all-payments",
   verifyToken,
-  requireRole("admin"),
+  requireRole("admin", "accounts"),
   getAllPayments,
 );
 router.patch(
   "/admin/approve/:paymentId",
   verifyToken,
-  requireRole("admin"),
+  requireRole("admin", "accounts"),
   approvePayment,
 );
 router.patch(
   "/admin/reject/:paymentId",
   verifyToken,
-  requireRole("admin"),
+  requireRole("admin", "accounts"),
   rejectPayment,
 );
 router.post(
   "/admin/cash-payment",
   verifyToken,
-  requireRole("admin"),
+  requireRole("admin", "accounts"),
   recordCashPayment,
 );
-router.post("/structures", verifyToken, requireRole("admin"), setFeeStructure);
+router.post(
+  "/structures",
+  verifyToken,
+  requireRole("admin", "accounts"),
+  setFeeStructure,
+);
 
 // ── Admin + Teacher routes ────────────────────────────────────────────────────
 router.get(
   "/students",
   verifyToken,
-  requireRole("admin", "teacher"),
+  requireRole("admin", "accounts", "teacher"),
   getStudentFeesList,
 );
 router.patch(
   "/students/:id",
   verifyToken,
-  requireRole("admin"),
+  requireRole("admin", "accounts"),
   updateStudentFee,
 );
 

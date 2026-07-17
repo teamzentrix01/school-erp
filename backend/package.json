@@ -5,7 +5,11 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "nodemon server.js"
+    "dev": "nodemon server.js",
+    "audit:documents-salary": "node scripts/auditDocumentSalaryFlows.js",
+    "audit:accounts": "node scripts/auditAccountsFlow.js",
+    "audit:validation": "node scripts/auditInputValidation.js",
+    "audit:result-clearance": "node scripts/auditResultFeeClearance.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

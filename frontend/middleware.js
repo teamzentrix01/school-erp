@@ -26,6 +26,13 @@ const TEACHER_ROUTES = [
   "/teachers/attendance",
 ];
 
+const ACCOUNTS_ROUTES = [
+  "/accounts/dashboard",
+  "/fees",
+  "/finance",
+  "/payroll",
+];
+
 const isWithin = (pathname, routes) =>
   routes.some(
     (route) => pathname === route || pathname.startsWith(`${route}/`),
@@ -61,6 +68,7 @@ export function middleware(request) {
 
   const studentArea = isWithin(pathname, STUDENT_ROUTES);
   const teacherArea = isWithin(pathname, TEACHER_ROUTES);
+  const accountsArea = isWithin(pathname, ACCOUNTS_ROUTES);
 
   if (user.role === "student" && !studentArea) {
     return NextResponse.redirect(new URL("/students/dashboard", request.url));
@@ -68,7 +76,13 @@ export function middleware(request) {
   if (user.role === "teacher" && !teacherArea) {
     return NextResponse.redirect(new URL("/teachers/dashboard", request.url));
   }
-  if (user.role === "admin" && (studentArea || teacherArea)) {
+  if (user.role === "accounts" && !accountsArea) {
+    return NextResponse.redirect(new URL("/accounts/dashboard", request.url));
+  }
+  if (
+    user.role === "admin" &&
+    (studentArea || teacherArea || pathname === "/accounts/dashboard")
+  ) {
     return NextResponse.redirect(new URL("/", request.url));
   }
 
@@ -78,6 +92,7 @@ export function middleware(request) {
 function roleDashboard(role) {
   if (role === "student") return "/students/dashboard";
   if (role === "teacher") return "/teachers/dashboard";
+  if (role === "accounts") return "/accounts/dashboard";
   return "/";
 }
 

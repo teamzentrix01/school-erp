@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Award, Loader2, Printer, RefreshCw } from "lucide-react";
+import { Award, CreditCard, Loader2, LockKeyhole, Printer, RefreshCw } from "lucide-react";
 import StudentSidebar from "@/components/StudentSidebar";
 import { apiFetch } from "@/lib/api";
 
@@ -48,6 +48,7 @@ function summaryFor(marks) {
 
 export default function StudentResultsPage() {
   const [rows, setRows] = useState([]);
+  const [lockedResults, setLockedResults] = useState([]);
   const [selectedKey, setSelectedKey] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -57,7 +58,8 @@ export default function StudentResultsPage() {
     setError("");
     try {
       const data = await apiFetch("/student/results");
-      setRows(Array.isArray(data) ? data : []);
+      setRows(Array.isArray(data) ? data : data?.results || []);
+      setLockedResults(Array.isArray(data) ? [] : data?.locked_results || []);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -105,6 +107,44 @@ export default function StudentResultsPage() {
             <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
               {error}
             </p>
+          )}
+          {!loading && lockedResults.length > 0 && (
+            <section className="rounded-lg border border-amber-200 bg-amber-50 p-5">
+              <div className="flex items-start gap-3">
+                <div className="rounded-lg bg-amber-100 p-2 text-amber-700">
+                  <LockKeyhole size={20} />
+                </div>
+                <div>
+                  <h2 className="font-bold text-gray-900">Results awaiting fee clearance</h2>
+                  <p className="mt-1 text-sm text-gray-600">
+                    Your marks are prepared but remain private until the required fee is cleared.
+                  </p>
+                </div>
+              </div>
+              <div className="mt-4 grid gap-3 md:grid-cols-2">
+                {lockedResults.map((exam) => (
+                  <div key={exam.exam_id} className="rounded-lg border border-amber-200 bg-white p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="font-bold text-gray-900">{exam.exam_name}</p>
+                        <p className="mt-0.5 text-xs text-gray-500">{exam.academic_year}</p>
+                      </div>
+                      <span className="rounded-full bg-red-50 px-2 py-1 text-xs font-semibold text-red-700">
+                        Locked
+                      </span>
+                    </div>
+                    <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
+                      <div><p className="text-gray-400">Required</p><p className="font-semibold">₹{Number(exam.required_amount || 0).toLocaleString("en-IN")}</p></div>
+                      <div><p className="text-gray-400">Paid</p><p className="font-semibold text-green-700">₹{Number(exam.paid_amount || 0).toLocaleString("en-IN")}</p></div>
+                      <div><p className="text-gray-400">Pending</p><p className="font-semibold text-red-600">₹{Number(exam.pending_amount || 0).toLocaleString("en-IN")}</p></div>
+                    </div>
+                    <a href="/students/fees" className="mt-4 flex items-center justify-center gap-2 rounded-lg bg-amber-600 px-3 py-2 text-sm font-semibold text-white">
+                      <CreditCard size={15} /> Pay / Check Fees
+                    </a>
+                  </div>
+                ))}
+              </div>
+            </section>
           )}
           {loading ? (
             <div className="flex justify-center py-24">
@@ -222,6 +262,12 @@ export default function StudentResultsPage() {
                 </div>
               </section>
             </>
+          ) : lockedResults.length ? (
+            <div className="rounded-lg border border-dashed border-amber-300 bg-white py-14 text-center">
+              <LockKeyhole size={32} className="mx-auto mb-3 text-amber-500" />
+              <p className="font-semibold text-gray-800">Published results are currently locked</p>
+              <p className="mt-1 text-sm text-gray-500">Complete the required fee or contact Accounts.</p>
+            </div>
           ) : (
             <div className="rounded-lg border border-dashed border-orange-300 bg-white py-20 text-center">
               <Award size={32} className="mx-auto mb-3 text-orange-500" />

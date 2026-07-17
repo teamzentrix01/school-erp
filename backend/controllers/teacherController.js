@@ -70,6 +70,7 @@ const getAllTeachers = async (req, res) => {
         t.phone,
         t.teacher_type AS "teacherType",
         t.status,
+        t.salary,
          t.aadhar_number,        
         t.aadhar_image_url,   
         t.profile_picture,  
@@ -110,6 +111,7 @@ const getAllTeachers = async (req, res) => {
       phone: t.phone,
       teacherType: t.teacherType || "Subject Teacher",
       status: t.status || "Active",
+      basicSalary: Number(t.salary || 0),
       subjectAssignments: t.subjectAssignments || [],
       classTeacherClass: t.classTeacherAssignment?.class || "",
       classTeacherSection: t.classTeacherAssignment?.section || "",
@@ -190,6 +192,7 @@ const createTeacher = async (req, res) => {
     subjectAssignments,
     status,
     aadhar_number,
+    salary,
   } = req.body;
 
   const client = await pool.connect();
@@ -210,15 +213,23 @@ const createTeacher = async (req, res) => {
     const userId = userResult.rows[0].id;
 
     // Create teacher
+    const salaryValue = salary === "" || salary == null ? 0 : Number(salary);
+    if (!Number.isFinite(salaryValue) || salaryValue < 0) {
+      await client.query("ROLLBACK");
+      return res
+        .status(400)
+        .json({ message: "Basic salary must be zero or greater" });
+    }
     const teacherResult = await client.query(
-      `INSERT INTO teachers (user_id, phone, teacher_type, status, aadhar_number)
-        VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+      `INSERT INTO teachers (user_id, phone, teacher_type, status, aadhar_number, salary)
+        VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
       [
         userId,
         phoneCheck.phone,
         teacherType,
         status || "Active",
         aadhar_number || null,
+        salaryValue,
       ],
     );
     const teacherId = teacherResult.rows[0].id;
@@ -326,6 +337,7 @@ const updateTeacher = async (req, res) => {
     subjectAssignments,
     status,
     aadhar_number,
+    salary,
   } = req.body;
 
   const client = await pool.connect();
@@ -340,6 +352,17 @@ const updateTeacher = async (req, res) => {
     }
 
     await client.query("BEGIN");
+
+    const salaryValue = salary === "" || salary == null ? null : Number(salary);
+    if (
+      salaryValue !== null &&
+      (!Number.isFinite(salaryValue) || salaryValue < 0)
+    ) {
+      await client.query("ROLLBACK");
+      return res
+        .status(400)
+        .json({ message: "Basic salary must be zero or greater" });
+    }
 
     // Get current teacher info
     const currentTeacher = await client.query(
@@ -383,9 +406,10 @@ const updateTeacher = async (req, res) => {
        teacher_type  = COALESCE($2, teacher_type),
        status        = COALESCE($3, status),
        aadhar_number = COALESCE($4, aadhar_number),
+       salary        = COALESCE($5, salary),
        updated_at    = NOW()
-     WHERE id = $5`,
-      [cleanPhone, teacherType, status, aadhar_number || null, id],
+     WHERE id = $6`,
+      [cleanPhone, teacherType, status, aadhar_number || null, salaryValue, id],
     );
 
     // Handle class teacher assignment

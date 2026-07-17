@@ -29,6 +29,7 @@ import {
   Banknote,
 } from "lucide-react";
 import SidebarItem from "./SidebarItem";
+import { useCurrentUser } from "@/lib/useCurrentUser";
 
 const NAV_SECTIONS = [
   {
@@ -38,6 +39,7 @@ const NAV_SECTIONS = [
       { icon: Users, label: "Students", href: "/students" },
       { icon: UserCog, label: "Teachers", href: "/teachers" },
       { icon: School, label: "Classes", href: "/classes" },
+      { icon: Wallet, label: "Accounts Users", href: "/accounts/users" },
     ],
   },
   {
@@ -75,11 +77,30 @@ const NAV_SECTIONS = [
   },
 ];
 
+const ACCOUNTS_NAV_SECTIONS = [
+  {
+    heading: "Accounts",
+    items: [
+      {
+        icon: LayoutDashboard,
+        label: "Dashboard",
+        href: "/accounts/dashboard",
+      },
+      { icon: CreditCard, label: "Fees", href: "/fees" },
+      { icon: Wallet, label: "College Finance", href: "/finance" },
+      { icon: Banknote, label: "Payroll", href: "/payroll" },
+    ],
+  },
+];
+
 export default function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const pathname = usePathname();
   const navRef = useRef(null);
+  const user = useCurrentUser();
+  const navSections =
+    user?.role === "accounts" ? ACCOUNTS_NAV_SECTIONS : user ? NAV_SECTIONS : [];
 
   // Close mobile sidebar on resize to desktop
   useEffect(() => {
@@ -110,7 +131,10 @@ export default function Sidebar() {
 
   const handleNavClick = () => {
     if (navRef.current) {
-      sessionStorage.setItem("admin-sidebar-scroll", String(navRef.current.scrollTop));
+      sessionStorage.setItem(
+        "admin-sidebar-scroll",
+        String(navRef.current.scrollTop),
+      );
     }
     closeMobile();
   };
@@ -243,7 +267,7 @@ export default function Sidebar() {
                         scrollbar-thin scrollbar-track-transparent scrollbar-thumb-white/20
                         space-y-1"
         >
-          {NAV_SECTIONS.map((section) => (
+          {navSections.map((section) => (
             <div key={section.heading} className="mb-2">
               {/* Section heading */}
               {!collapsed && (

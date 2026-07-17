@@ -25,6 +25,8 @@ const payrollRoutes = require("./routes/payrollRoutes");
 const financeRoutes = require("./routes/financeRoutes");
 const examinationRoutes = require("./routes/examinationRoutes");
 const smartAttendanceRoutes = require("./routes/smartAttendanceRoutes");
+const accountsRoutes = require("./routes/accountsRoutes");
+const { requestValidation } = require("./middleware/requestValidation");
 
 const app = express();
 
@@ -36,6 +38,7 @@ app.use(
 );
 app.use(express.json());
 app.use(cookieParser());
+app.use(requestValidation);
 app.get("/", (req, res) => res.json({ message: "EduERP API running" }));
 
 app.use("/api/admin/notices", adminNoticesRoutes);
@@ -43,6 +46,8 @@ app.use("/api/student/notices", studentNoticesRoutes);
 app.use("/api/teacher/notices", teacherNoticesRoutes);
 app.use("/api/attendance", attendanceRoutes);
 app.use("/api/auth", authRoutes);
+app.use("/api/admin/payroll", payrollRoutes);
+app.use("/api/admin/finance", financeRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/admin", timetableRoutes);
 app.use("/api/student", studentRoutes);
@@ -54,10 +59,9 @@ app.use("/api/admin/results", resultsRoutes);
 app.use("/api/admin/hostel", hostelRoutes);
 app.use("/api/library", libraryRoutes);
 app.use("/api/documents", documentRoutes);
-app.use("/api/admin/payroll", payrollRoutes);
-app.use("/api/admin/finance", financeRoutes);
 app.use("/api/examinations", examinationRoutes);
 app.use("/api/smart-attendance", smartAttendanceRoutes);
+app.use("/api/accounts", accountsRoutes);
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 app.use((req, res) => res.status(404).json({ message: "Route not found" }));

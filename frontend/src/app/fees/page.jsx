@@ -1601,7 +1601,7 @@ export default function AdminFeesPage() {
   const loadClasses = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await apiFetch("/admin/classes");
+      const data = await apiFetch("/fees/classes");
       setClasses(data || []);
     } catch {
       setClasses([]);
