@@ -2,6 +2,7 @@ const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
 const pool = require("../config/db");
+const { getExamClearance } = require("../services/feeClearanceService");
 
 const isValidDateString = (value) => {
   if (!value) return true;
@@ -11,6 +12,8 @@ const isValidDateString = (value) => {
   const parsed = new Date(`${value}T00:00:00.000Z`);
   return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
 };
+const dateOnly = (value) =>
+  value?.toISOString?.().slice(0, 10) || String(value || "").slice(0, 10);
 
 const getExaminationAdmin = async (_req, res) => {
   try {
@@ -73,6 +76,46 @@ const saveSchedule = async (req, res) => {
       .json({ message: "End time must be after start time" });
   }
   try {
+    const exam = await pool.query(
+      "SELECT id,start_date,end_date,status FROM exams WHERE id=$1",
+      [exam_id],
+    );
+    if (!exam.rows.length) {
+      return res.status(404).json({ message: "Exam not found" });
+    }
+    const { start_date: examStart, end_date: examEnd } = exam.rows[0];
+    const start = dateOnly(examStart);
+    const end = dateOnly(examEnd);
+    if (!start || !end) {
+      return res.status(409).json({
+        message: "Set the exam start and end dates before creating its date sheet",
+      });
+    }
+    if (exam_date < start || exam_date > end) {
+      return res.status(400).json({
+        message: `Exam date must be between ${start} and ${end}`,
+      });
+    }
+    if (["submitted", "approved", "result_published"].includes(exam.rows[0].status)) {
+      return res.status(409).json({
+        message: "Date sheet cannot be changed after the class result is submitted",
+      });
+    }
+    if (req.params.id) {
+      const releasedCards = await pool.query(
+        `SELECT COUNT(*)::int AS count
+           FROM admit_cards ac
+           JOIN exam_schedule es ON es.exam_id=ac.exam_id
+          WHERE es.id=$1 AND ac.published=TRUE`,
+        [req.params.id],
+      );
+      if (releasedCards.rows[0].count) {
+        return res.status(409).json({
+          message:
+            "This date sheet is locked because admit cards are already published. Unpublish the admit cards first.",
+        });
+      }
+    }
     const values = [
       exam_id,
       subject.trim(),
@@ -113,6 +156,19 @@ const saveSchedule = async (req, res) => {
 
 const deleteSchedule = async (req, res) => {
   try {
+    const releasedCards = await pool.query(
+      `SELECT COUNT(*)::int AS count
+         FROM admit_cards ac
+         JOIN exam_schedule es ON es.exam_id=ac.exam_id
+        WHERE es.id=$1 AND ac.published=TRUE`,
+      [req.params.id],
+    );
+    if (releasedCards.rows[0].count) {
+      return res.status(409).json({
+        message:
+          "This date sheet is locked because admit cards are already published. Unpublish the admit cards first.",
+      });
+    }
     const result = await pool.query(
       "DELETE FROM exam_schedule WHERE id=$1 RETURNING id",
       [req.params.id],
@@ -138,6 +194,25 @@ const uploadQuestionPaper = async (req, res) => {
       .json({ message: "Exam, subject, and title are required" });
   }
   try {
+    const exam = await pool.query(
+      "SELECT start_date,end_date FROM exams WHERE id=$1",
+      [exam_id],
+    );
+    if (!exam.rows.length) {
+      fs.unlink(req.file.path, () => {});
+      return res.status(404).json({ message: "Exam not found" });
+    }
+    if (release_at) {
+      const releaseDate = String(release_at).slice(0, 10);
+      const start = dateOnly(exam.rows[0].start_date);
+      const end = dateOnly(exam.rows[0].end_date);
+      if ((start && releaseDate < start) || (end && releaseDate > end)) {
+        fs.unlink(req.file.path, () => {});
+        return res.status(400).json({
+          message: `Question-paper release must be between ${start} and ${end}`,
+        });
+      }
+    }
     const result = await pool.query(
       `INSERT INTO question_papers
          (exam_id,subject,title,file_name,file_url,mime_type,access_status,
@@ -165,6 +240,25 @@ const uploadQuestionPaper = async (req, res) => {
 
 const updateQuestionPaper = async (req, res) => {
   try {
+    if (req.body.release_at) {
+      const paper = await pool.query(
+        `SELECT e.start_date,e.end_date
+           FROM question_papers qp JOIN exams e ON e.id=qp.exam_id
+          WHERE qp.id=$1`,
+        [req.params.id],
+      );
+      if (!paper.rows.length) {
+        return res.status(404).json({ message: "Question paper not found" });
+      }
+      const releaseDate = String(req.body.release_at).slice(0, 10);
+      const start = dateOnly(paper.rows[0].start_date);
+      const end = dateOnly(paper.rows[0].end_date);
+      if ((start && releaseDate < start) || (end && releaseDate > end)) {
+        return res.status(400).json({
+          message: `Question-paper release must be between ${start} and ${end}`,
+        });
+      }
+    }
     const result = await pool.query(
       `UPDATE question_papers SET access_status=COALESCE($1,access_status),
          release_at=$2,title=COALESCE($3,title)
@@ -218,6 +312,22 @@ const generateAdmitCards = async (req, res) => {
       examId,
     ]);
     if (!exam.rows.length) throw new Error("Exam not found");
+    const schedule = await client.query(
+      `SELECT COUNT(*)::int AS total,
+              COUNT(*) FILTER (WHERE published=TRUE)::int AS published
+         FROM exam_schedule WHERE exam_id=$1`,
+      [examId],
+    );
+    if (!schedule.rows[0].total) {
+      throw new Error(
+        "Create and publish the complete date sheet before generating admit cards",
+      );
+    }
+    if (schedule.rows[0].published !== schedule.rows[0].total) {
+      throw new Error(
+        "Publish every date-sheet entry before generating admit cards",
+      );
+    }
     const params = [exam.rows[0].class];
     let sectionFilter = "";
     if (exam.rows[0].section) {
@@ -271,14 +381,102 @@ const generateAdmitCards = async (req, res) => {
 
 const publishAdmitCards = async (req, res) => {
   try {
-    const result = await pool.query(
-      `UPDATE admit_cards SET published=$1 WHERE exam_id=$2 RETURNING id`,
-      [req.body.published !== false, req.params.examId],
+    const shouldPublish = req.body.published !== false;
+    if (!shouldPublish) {
+      const result = await pool.query(
+        "UPDATE admit_cards SET published=FALSE WHERE exam_id=$1 RETURNING id",
+        [req.params.examId],
+      );
+      return res.json({
+        updated: result.rowCount,
+        message: "Admit cards unpublished. The date sheet can now be updated.",
+      });
+    }
+    const schedule = await pool.query(
+      `SELECT COUNT(*)::int AS total,
+              COUNT(*) FILTER (WHERE published=TRUE)::int AS published
+         FROM exam_schedule WHERE exam_id=$1`,
+      [req.params.examId],
     );
-    res.json({ updated: result.rowCount });
+    if (
+      !schedule.rows[0].total ||
+      schedule.rows[0].published !== schedule.rows[0].total
+    ) {
+      return res.status(409).json({
+        message: "Publish the complete date sheet before releasing admit cards",
+      });
+    }
+    const clearance = await getExamClearance(req.params.examId);
+    if (!clearance) {
+      return res.status(404).json({ message: "Exam not found" });
+    }
+    const eligibleIds = clearance.rows
+      .filter((row) => row.result_eligible)
+      .map((row) => row.student_id);
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query(
+        "UPDATE admit_cards SET published=FALSE WHERE exam_id=$1",
+        [req.params.examId],
+      );
+      const result = eligibleIds.length
+        ? await client.query(
+            `UPDATE admit_cards SET published=TRUE
+              WHERE exam_id=$1 AND student_id=ANY($2::int[]) RETURNING id`,
+            [req.params.examId, eligibleIds],
+          )
+        : { rowCount: 0 };
+      await client.query("COMMIT");
+      res.json({
+        updated: result.rowCount,
+        blocked: clearance.summary.blocked,
+        message: `${result.rowCount} admit card(s) released${
+          clearance.summary.blocked
+            ? `; ${clearance.summary.blocked} held for fee clearance`
+            : ""
+        }`,
+      });
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
   } catch (error) {
     console.error("publishAdmitCards:", error);
     res.status(500).json({ message: "Failed to publish admit cards" });
+  }
+};
+
+const getTeacherAdmitCards = async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT ac.*,e.name AS exam_name,e.exam_type,e.academic_year,e.class,e.section,
+              e.start_date,e.end_date,u.name AS student_name,s.roll_number,
+              s.photo_url,es.schedule
+         FROM teachers t
+         JOIN exams e ON TRUE
+         LEFT JOIN classes c ON c.id=e.class_id
+         JOIN admit_cards ac ON ac.exam_id=e.id
+         JOIN students s ON s.id=ac.student_id
+         JOIN users u ON u.id=s.user_id
+         LEFT JOIN LATERAL (
+           SELECT JSON_AGG(JSON_BUILD_OBJECT(
+             'subject',subject,'exam_date',exam_date,'start_time',start_time,
+             'end_time',end_time,'room',room,'instructions',instructions
+           ) ORDER BY exam_date,start_time) AS schedule
+             FROM exam_schedule WHERE exam_id=e.id AND published=TRUE
+         ) es ON TRUE
+        WHERE t.user_id=$1
+          AND COALESCE(c.teacher_id,e.class_teacher_id)=t.id
+        ORDER BY e.start_date DESC,u.name`,
+      [req.user.id],
+    );
+    res.json(result.rows);
+  } catch (error) {
+    console.error("getTeacherAdmitCards:", error);
+    res.status(500).json({ message: "Failed to load class admit cards" });
   }
 };
 
@@ -390,5 +588,6 @@ module.exports = {
   generateAdmitCards,
   publishAdmitCards,
   getAdmitCards,
+  getTeacherAdmitCards,
   getStudentExaminations,
 };

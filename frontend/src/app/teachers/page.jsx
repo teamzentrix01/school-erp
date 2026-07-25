@@ -382,6 +382,7 @@ function AddTeacherModal({ onClose, onSaved, subjectsList, classesMeta }) {
       onSaved(data);
       onClose();
     } catch (err) {
+      window.alert(err.message);
       setErrors((p) => ({ ...p, submit: err.message }));
     } finally {
       setSaving(false);

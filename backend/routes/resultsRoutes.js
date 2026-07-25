@@ -13,6 +13,7 @@ const {
   saveMarks,
   getResultSubmissions,
   reviewResultSubmission,
+  releaseExam,
   publishExam,
   getFeeClearance,
   updateFeeClearanceOverride,
@@ -64,6 +65,7 @@ router.get("/exams/:id/marks", getExamMarks);
 router.put("/exams/:id/marks", saveMarks);
 router.get("/submissions", getResultSubmissions);
 router.put("/submissions/:id/review", reviewResultSubmission);
+router.post("/exams/:id/release", releaseExam);
 router.post("/exams/:id/publish", publishExam);
 router.get("/exams/:id/fee-clearance", getFeeClearance);
 router.put(

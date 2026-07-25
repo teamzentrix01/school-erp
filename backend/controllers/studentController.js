@@ -89,7 +89,7 @@ const getResults = async (req, res) => {
               e.fee_clearance_required, e.fee_clearance_cutoff_date
        FROM exams e
        JOIN results r ON r.exam_id=e.id AND r.student_id=$1 AND r.published=TRUE
-       WHERE e.status='published'
+       WHERE e.status IN ('published','result_published')
        ORDER BY e.id DESC`,
       [student.rows[0].id],
     );

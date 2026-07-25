@@ -16,6 +16,10 @@ import {
   X,
 } from "lucide-react";
 import Sidebar from "@/components/Sidebar";
+import {
+  ConfirmDialog,
+  ToastMessage,
+} from "@/components/ActionFeedback";
 import { apiFetch, getMediaUrl } from "@/lib/api";
 
 const emptySchedule = {
@@ -49,6 +53,22 @@ export default function ExaminationsPage() {
   });
   const [paperFile, setPaperFile] = useState(null);
   const [cards, setCards] = useState([]);
+  const [toast, setToast] = useState(null);
+  const [confirmation, setConfirmation] = useState(null);
+  const [actionBusy, setActionBusy] = useState(false);
+
+  const notify = useCallback((message, type = "success") => {
+    setToast({ message, type });
+    window.setTimeout(() => setToast(null), 3500);
+  }, []);
+
+  const requestConfirmation = (options) =>
+    new Promise((resolve) => setConfirmation({ ...options, resolve }));
+
+  const closeConfirmation = (answer) => {
+    confirmation?.resolve(answer);
+    setConfirmation(null);
+  };
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -74,13 +94,25 @@ export default function ExaminationsPage() {
       },
     );
     setScheduleModal(null);
+    notify("Date-sheet entry saved successfully.");
     load();
   };
 
   const deleteSchedule = async (id) => {
-    if (!window.confirm("Delete this date-sheet entry?")) return;
-    await apiFetch(`/examinations/schedule/${id}`, { method: "DELETE" });
-    load();
+    const approved = await requestConfirmation({
+      title: "Delete date-sheet entry?",
+      message: "This subject schedule will be removed from the exam.",
+      confirmLabel: "Delete",
+      tone: "danger",
+    });
+    if (!approved) return;
+    try {
+      await apiFetch(`/examinations/schedule/${id}`, { method: "DELETE" });
+      notify("Date-sheet entry deleted.");
+      load();
+    } catch (error) {
+      notify(error.message, "error");
+    }
   };
 
   const uploadPaper = async () => {
@@ -93,6 +125,7 @@ export default function ExaminationsPage() {
     await apiFetch("/examinations/question-papers", { method: "POST", body });
     setPaperFile(null);
     setPaperForm((current) => ({ ...current, title: "", subject: "" }));
+    notify("Question paper uploaded successfully.");
     load();
   };
 
@@ -109,26 +142,62 @@ export default function ExaminationsPage() {
   };
 
   const deletePaper = async (id) => {
-    if (!window.confirm("Delete this question paper?")) return;
-    await apiFetch(`/examinations/question-papers/${id}`, { method: "DELETE" });
-    load();
+    const approved = await requestConfirmation({
+      title: "Delete question paper?",
+      message: "The uploaded question paper will be removed permanently.",
+      confirmLabel: "Delete",
+      tone: "danger",
+    });
+    if (!approved) return;
+    try {
+      await apiFetch(`/examinations/question-papers/${id}`, {
+        method: "DELETE",
+      });
+      notify("Question paper deleted.");
+      load();
+    } catch (error) {
+      notify(error.message, "error");
+    }
   };
 
   const generateCards = async (examId) => {
-    const result = await apiFetch(
-      `/examinations/admit-cards/${examId}/generate`,
-      { method: "POST", body: "{}" },
-    );
-    window.alert(result.message);
-    load();
+    try {
+      const result = await apiFetch(
+        `/examinations/admit-cards/${examId}/generate`,
+        { method: "POST", body: "{}" },
+      );
+      notify(result.message);
+      load();
+    } catch (error) {
+      notify(error.message, "error");
+    }
   };
 
   const publishCards = async (examId, published = true) => {
-    await apiFetch(`/examinations/admit-cards/${examId}/publish`, {
-      method: "PUT",
-      body: JSON.stringify({ published }),
+    const approved = await requestConfirmation({
+      title: published ? "Release admit cards?" : "Unpublish admit cards?",
+      message: published
+        ? "Eligible students will immediately see and print their admit cards. Fee-pending students will remain on hold."
+        : "Students will no longer be able to access these admit cards.",
+      confirmLabel: published ? "Release Cards" : "Unpublish",
     });
-    load();
+    if (!approved) return;
+    setActionBusy(true);
+    try {
+      const result = await apiFetch(
+        `/examinations/admit-cards/${examId}/publish`,
+        {
+          method: "PUT",
+          body: JSON.stringify({ published }),
+        },
+      );
+      notify(result.message || "Admit-card status updated.");
+      load();
+    } catch (error) {
+      notify(error.message, "error");
+    } finally {
+      setActionBusy(false);
+    }
   };
 
   const viewCards = async (examId) => {
@@ -410,7 +479,12 @@ export default function ExaminationsPage() {
                         </td>
                         <td className="px-4 py-3">{batch?.card_count || 0}</td>
                         <td className="px-4 py-3">
-                          {batch?.published_count || 0}
+                          {batch?.published_count || 0} released
+                          {batch?.card_count > batch?.published_count && (
+                            <p className="mt-1 text-xs text-amber-600">
+                              {batch.card_count - batch.published_count} held
+                            </p>
+                          )}
                         </td>
                         <td className="px-4 py-3">
                           <div className="flex gap-2">
@@ -421,11 +495,23 @@ export default function ExaminationsPage() {
                               Generate
                             </button>
                             <button
-                              onClick={() => publishCards(exam.id)}
+                              onClick={() =>
+                                publishCards(
+                                  exam.id,
+                                  !Boolean(batch?.published_count),
+                                )
+                              }
                               disabled={!batch?.card_count}
-                              className="flex items-center gap-1 rounded-lg bg-green-600 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-40"
+                              className={`flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-40 ${
+                                batch?.published_count
+                                  ? "bg-gray-600"
+                                  : "bg-green-600"
+                              }`}
                             >
-                              <Send size={12} /> Publish
+                              <Send size={12} />{" "}
+                              {batch?.published_count
+                                ? "Unpublish"
+                                : "Release"}
                             </button>
                             <button
                               onClick={() => viewCards(exam.id)}
@@ -461,6 +547,14 @@ export default function ExaminationsPage() {
       {!!cards.length && (
         <CardsModal cards={cards} onClose={() => setCards([])} />
       )}
+      <ToastMessage toast={toast} onClose={() => setToast(null)} />
+      <ConfirmDialog
+        {...confirmation}
+        open={Boolean(confirmation)}
+        busy={actionBusy}
+        onCancel={() => closeConfirmation(false)}
+        onConfirm={() => closeConfirmation(true)}
+      />
     </div>
   );
 }
@@ -471,7 +565,24 @@ function ScheduleModal({ exams, initial, onClose, onSave }) {
   const [error, setError] = useState("");
   const set = (key, value) =>
     setForm((current) => ({ ...current, [key]: value }));
+  const selectedExam = exams.find(
+    (exam) => Number(exam.id) === Number(form.exam_id),
+  );
+  const examStart = selectedExam?.start_date?.slice(0, 10) || "";
+  const examEnd = selectedExam?.end_date?.slice(0, 10) || "";
   const submit = async () => {
+    if (!selectedExam) {
+      setError("Select an exam.");
+      return;
+    }
+    if (!examStart || !examEnd) {
+      setError("Set the exam start and end dates before adding its date sheet.");
+      return;
+    }
+    if (!form.exam_date || form.exam_date < examStart || form.exam_date > examEnd) {
+      setError(`Date must be between ${examStart} and ${examEnd}.`);
+      return;
+    }
     setSaving(true);
     setError("");
     try {
@@ -494,7 +605,26 @@ function ScheduleModal({ exams, initial, onClose, onSave }) {
         <div className="grid gap-3 p-5 sm:grid-cols-2">
           <select
             value={form.exam_id}
-            onChange={(event) => set("exam_id", event.target.value)}
+            onChange={(event) => {
+              const nextExam = exams.find(
+                (exam) => Number(exam.id) === Number(event.target.value),
+              );
+              const nextStart = nextExam?.start_date?.slice(0, 10) || "";
+              const nextEnd = nextExam?.end_date?.slice(0, 10) || "";
+              setForm((current) => ({
+                ...current,
+                exam_id: event.target.value,
+                exam_date:
+                  current.exam_date &&
+                  nextStart &&
+                  nextEnd &&
+                  current.exam_date >= nextStart &&
+                  current.exam_date <= nextEnd
+                    ? current.exam_date
+                    : "",
+              }));
+              setError("");
+            }}
             className="sm:col-span-2 rounded-lg border border-orange-200 px-3 py-2.5 text-sm"
           >
             <option value="">Select exam</option>
@@ -516,12 +646,18 @@ function ScheduleModal({ exams, initial, onClose, onSave }) {
               {label}
               <input
                 type={type}
-                min={type === "date" ? "1900-01-01" : undefined}
-                max={type === "date" ? "2100-12-31" : undefined}
+                min={type === "date" ? examStart || "1900-01-01" : undefined}
+                max={type === "date" ? examEnd || "2100-12-31" : undefined}
                 value={form[key] ?? ""}
                 onChange={(event) => set(key, event.target.value)}
                 className="mt-1 w-full rounded-lg border border-orange-200 px-3 py-2.5 text-sm"
               />
+              {key === "exam_date" && selectedExam && (
+                <span className="mt-1 block text-[11px] font-normal text-orange-600">
+                  Allowed: {examStart || "start date missing"} to{" "}
+                  {examEnd || "end date missing"}
+                </span>
+              )}
             </label>
           ))}
           <label className="flex items-center gap-2 self-end py-2 text-sm">
@@ -603,6 +739,16 @@ function CardsModal({ cards, onClose }) {
                 </p>
                 <p>
                   Card No: <strong>{card.card_number}</strong>
+                </p>
+                <p>
+                  Status:{" "}
+                  <strong
+                    className={
+                      card.published ? "text-green-700" : "text-amber-700"
+                    }
+                  >
+                    {card.published ? "Released" : "On Hold"}
+                  </strong>
                 </p>
               </div>
               <table className="w-full text-sm">

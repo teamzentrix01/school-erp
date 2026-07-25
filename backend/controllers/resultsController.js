@@ -21,6 +21,8 @@ const isValidDateString = (value) => {
   const parsed = new Date(`${value}T00:00:00.000Z`);
   return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
 };
+const dateOnly = (value) =>
+  value?.toISOString?.().slice(0, 10) || String(value || "").slice(0, 10);
 
 const parseCsvLine = (line) => {
   const values = [];
@@ -46,17 +48,33 @@ const parseCsvLine = (line) => {
 
 const getTeacherAssignment = async (userId, examId, subject, section) => {
   const result = await pool.query(
-    `SELECT t.id AS teacher_id, e.*, ts.subject AS assigned_subject,
-            ts.section AS assigned_section
+    `SELECT t.id AS teacher_id, e.*, $3::varchar AS assigned_subject,
+            COALESCE(e.section, c.section, $4::varchar) AS assigned_section
      FROM teachers t
-     JOIN teacher_subjects ts ON ts.teacher_id = t.id
-     JOIN exams e
-       ON LOWER(TRIM(e.class)) = LOWER(TRIM(ts.class_name))
-      AND (e.section IS NULL OR LOWER(TRIM(e.section)) = LOWER(TRIM(ts.section)))
+     JOIN exams e ON TRUE
+     LEFT JOIN classes c ON c.id = e.class_id
      WHERE t.user_id = $1
+       AND COALESCE(c.teacher_id, e.class_teacher_id) = t.id
        AND e.id = $2
-       AND LOWER(TRIM(ts.subject)) = LOWER(TRIM($3))
-       AND LOWER(TRIM(ts.section)) = LOWER(TRIM($4))
+       AND LOWER(TRIM(COALESCE(e.section, c.section))) = LOWER(TRIM($4))
+       AND EXISTS (
+         SELECT 1
+         FROM (
+           SELECT es.subject FROM exam_schedule es WHERE es.exam_id = e.id
+           UNION
+           SELECT ts.subject
+             FROM teacher_subjects ts
+            WHERE LOWER(TRIM(ts.class_name)) = LOWER(TRIM(e.class))
+              AND LOWER(TRIM(ts.section)) = LOWER(TRIM(COALESCE(e.section, c.section)))
+           UNION
+           SELECT tt.subject
+             FROM timetable tt
+            WHERE tt.class_id = e.class_id
+           UNION
+           SELECT r.subject FROM results r WHERE r.exam_id = e.id
+         ) configured_subjects
+         WHERE LOWER(TRIM(configured_subjects.subject)) = LOWER(TRIM($3))
+       )
      LIMIT 1`,
     [userId, examId, subject, section],
   );
@@ -66,22 +84,40 @@ const getTeacherAssignment = async (userId, examId, subject, section) => {
 const getTeacherExams = async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT DISTINCT e.*, ts.subject, ts.section AS assigned_section,
+      `SELECT DISTINCT e.*, subjects.subject,
+              COALESCE(e.section, c.section) AS assigned_section,
               rs.id AS submission_id,
               COALESCE(rs.status, 'draft') AS submission_status,
               rs.feedback, rs.submitted_at, rs.reviewed_at
        FROM teachers t
-       JOIN teacher_subjects ts ON ts.teacher_id = t.id
-       JOIN exams e
-         ON LOWER(TRIM(e.class)) = LOWER(TRIM(ts.class_name))
-        AND (e.section IS NULL OR LOWER(TRIM(e.section)) = LOWER(TRIM(ts.section)))
+       JOIN exams e ON TRUE
+       LEFT JOIN classes c ON c.id = e.class_id
+       JOIN LATERAL (
+         SELECT DISTINCT configured.subject
+         FROM (
+           SELECT es.subject FROM exam_schedule es WHERE es.exam_id = e.id
+           UNION
+           SELECT ts.subject
+             FROM teacher_subjects ts
+            WHERE LOWER(TRIM(ts.class_name)) = LOWER(TRIM(e.class))
+              AND LOWER(TRIM(ts.section)) = LOWER(TRIM(COALESCE(e.section, c.section)))
+           UNION
+           SELECT tt.subject
+             FROM timetable tt
+            WHERE tt.class_id = e.class_id
+           UNION
+           SELECT r.subject FROM results r WHERE r.exam_id = e.id
+         ) configured
+       ) subjects ON TRUE
        LEFT JOIN result_submissions rs
          ON rs.exam_id = e.id
         AND rs.teacher_id = t.id
-        AND LOWER(TRIM(rs.subject)) = LOWER(TRIM(ts.subject))
-        AND LOWER(TRIM(rs.section)) = LOWER(TRIM(ts.section))
+        AND LOWER(TRIM(rs.subject)) = LOWER(TRIM(subjects.subject))
+        AND LOWER(TRIM(rs.section)) = LOWER(TRIM(COALESCE(e.section, c.section)))
        WHERE t.user_id = $1
-       ORDER BY e.created_at DESC, ts.subject, ts.section`,
+         AND COALESCE(c.teacher_id, e.class_teacher_id) = t.id
+         AND e.status IN ('released','marks_in_progress','submitted','returned','approved')
+       ORDER BY e.created_at DESC, subjects.subject, assigned_section`,
       [req.user.id],
     );
     res.json(result.rows);
@@ -278,6 +314,11 @@ const saveTeacherMarks = async (req, res) => {
         assignment.assigned_section,
       ],
     );
+    await client.query(
+      `UPDATE exams SET status='marks_in_progress',updated_at=NOW()
+        WHERE id=$1 AND status IN ('released','returned','marks_in_progress')`,
+      [assignment.id],
+    );
     await client.query("COMMIT");
     res.json({ message: `${saved} marks saved as draft`, saved });
   } catch (error) {
@@ -302,52 +343,88 @@ const submitTeacherMarks = async (req, res) => {
       .status(403)
       .json({ message: "This exam is not assigned to you" });
   }
+  const client = await pool.connect();
   try {
-    const counts = await pool.query(
-      `SELECT
-         (SELECT COUNT(*) FROM students
+    await client.query("BEGIN");
+    const readiness = await client.query(
+      `WITH expected_subjects AS (
+         SELECT es.subject FROM exam_schedule es WHERE es.exam_id=$3
+         UNION
+         SELECT ts.subject FROM teacher_subjects ts
+          WHERE LOWER(TRIM(ts.class_name))=LOWER(TRIM($1))
+            AND LOWER(TRIM(ts.section))=LOWER(TRIM($2))
+         UNION
+         SELECT tt.subject FROM timetable tt WHERE tt.class_id=$4
+         UNION
+         SELECT r.subject FROM results r WHERE r.exam_id=$3
+       ),
+       active_students AS (
+         SELECT id FROM students
           WHERE LOWER(TRIM(class))=LOWER(TRIM($1))
             AND LOWER(TRIM(section))=LOWER(TRIM($2))
-            AND COALESCE(is_active, TRUE)=TRUE)::int AS students,
-         (SELECT COUNT(*) FROM results r
-          JOIN students s ON s.id = r.student_id
-          WHERE r.exam_id=$3 AND r.teacher_id=$4
-            AND LOWER(TRIM(r.subject))=LOWER(TRIM($5))
-            AND LOWER(TRIM(s.section))=LOWER(TRIM($2)))::int AS marks`,
+            AND COALESCE(is_active,TRUE)=TRUE
+       )
+       SELECT es.subject,
+              (SELECT COUNT(*) FROM active_students)::int AS students,
+              COUNT(DISTINCT r.student_id)::int AS completed
+         FROM expected_subjects es
+         LEFT JOIN results r ON r.exam_id=$3
+          AND LOWER(TRIM(r.subject))=LOWER(TRIM(es.subject))
+          AND r.student_id IN (SELECT id FROM active_students)
+        WHERE NULLIF(TRIM(es.subject),'') IS NOT NULL
+        GROUP BY es.subject ORDER BY es.subject`,
       [
         assignment.class,
         section,
         assignment.id,
-        assignment.teacher_id,
-        subject,
+        assignment.class_id,
       ],
     );
-    if (
-      !counts.rows[0].students ||
-      counts.rows[0].marks < counts.rows[0].students
-    ) {
+    if (!readiness.rows.length) {
+      await client.query("ROLLBACK");
       return res.status(400).json({
-        message: `Complete all student rows before submitting (${counts.rows[0].marks}/${counts.rows[0].students})`,
+        message: "Configure the exam date sheet or class subjects before submission",
       });
     }
-    const result = await pool.query(
-      `INSERT INTO result_submissions
-         (exam_id, teacher_id, subject, section, status, submitted_at, feedback)
-       VALUES ($1,$2,$3,$4,'submitted',NOW(),NULL)
-       ON CONFLICT (exam_id, teacher_id, subject, section)
-       DO UPDATE SET status='submitted', submitted_at=NOW(), feedback=NULL, updated_at=NOW()
-       RETURNING *`,
-      [
-        assignment.id,
-        assignment.teacher_id,
-        assignment.assigned_subject,
-        assignment.assigned_section,
-      ],
+    const incomplete = readiness.rows.filter(
+      (row) => !row.students || row.completed < row.students,
     );
-    res.json(result.rows[0]);
+    if (incomplete.length) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({
+        message: `Complete every student for: ${incomplete
+          .map((row) => `${row.subject} (${row.completed}/${row.students})`)
+          .join(", ")}`,
+      });
+    }
+    let submitted;
+    for (const row of readiness.rows) {
+      const result = await client.query(
+        `INSERT INTO result_submissions
+           (exam_id,teacher_id,subject,section,status,submitted_at,feedback)
+         VALUES ($1,$2,$3,$4,'submitted',NOW(),NULL)
+         ON CONFLICT (exam_id,teacher_id,subject,section)
+         DO UPDATE SET status='submitted',submitted_at=NOW(),feedback=NULL,updated_at=NOW()
+         RETURNING *`,
+        [assignment.id, assignment.teacher_id, row.subject, section],
+      );
+      submitted ||= result.rows[0];
+    }
+    await client.query(
+      "UPDATE exams SET status='submitted',updated_at=NOW() WHERE id=$1",
+      [assignment.id],
+    );
+    await client.query("COMMIT");
+    res.json({
+      ...submitted,
+      message: `Complete class result submitted for ${readiness.rows.length} subjects`,
+    });
   } catch (error) {
+    await client.query("ROLLBACK");
     console.error("submitTeacherMarks:", error);
     res.status(500).json({ message: "Failed to submit marks" });
+  } finally {
+    client.release();
   }
 };
 
@@ -369,12 +446,18 @@ const getExams = async (req, res) => {
       where += ` AND e.status = $${params.length}`;
     }
     const result = await pool.query(
-      `SELECT e.*, COUNT(r.id)::int AS marks_count,
+      `SELECT e.*, ec.name AS cycle_name, u.name AS class_teacher_name,
+              COALESCE(assigned_class.teacher_id,e.class_teacher_id) AS effective_class_teacher_id,
+              COUNT(r.id)::int AS marks_count,
               COUNT(DISTINCT r.student_id)::int AS students_marked
        FROM exams e
+       LEFT JOIN exam_cycles ec ON ec.id=e.exam_cycle_id
+       LEFT JOIN classes assigned_class ON assigned_class.id=e.class_id
+       LEFT JOIN teachers t ON t.id=COALESCE(assigned_class.teacher_id,e.class_teacher_id)
+       LEFT JOIN users u ON u.id=t.user_id
        LEFT JOIN results r ON r.exam_id = e.id
        ${where}
-       GROUP BY e.id
+       GROUP BY e.id, ec.id, u.name, assigned_class.teacher_id
        ORDER BY e.created_at DESC`,
       params,
     );
@@ -399,8 +482,10 @@ const createExam = async (req, res) => {
     fee_clearance_mode = "full",
     fee_required_amount = 0,
     fee_clearance_cutoff_date,
+    class_ids,
   } = req.body;
-  if (!name || !exam_type || !academic_year || !className) {
+  const isBatch = Array.isArray(class_ids) && class_ids.length > 0;
+  if (!name || !exam_type || !academic_year || (!className && !isBatch)) {
     return res
       .status(400)
       .json({ message: "Name, type, academic year, and class are required" });
@@ -421,13 +506,73 @@ const createExam = async (req, res) => {
   ) {
     return res.status(400).json({ message: "Required fee amount must be greater than zero" });
   }
+  const client = await pool.connect();
   try {
-    const result = await pool.query(
+    await client.query("BEGIN");
+    if (isBatch) {
+      const normalizedClassIds = class_ids.map(Number);
+      if (normalizedClassIds.some((id) => !Number.isInteger(id) || id <= 0)) {
+        throw new Error("Every selected class must have a valid numeric ID");
+      }
+      const uniqueClassIds = [...new Set(normalizedClassIds)];
+      const classes = await client.query(
+        `SELECT id, COALESCE(NULLIF(grade,''), class_name) AS grade, section, teacher_id
+           FROM classes WHERE id = ANY($1::int[]) ORDER BY grade, section`,
+        [uniqueClassIds],
+      );
+      if (classes.rows.length !== uniqueClassIds.length) {
+        throw new Error("One or more selected classes do not exist");
+      }
+      const cycle = await client.query(
+        `INSERT INTO exam_cycles
+           (name,exam_type,academic_year,start_date,end_date,created_by)
+         VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
+        [name.trim(), exam_type, academic_year, start_date || null, end_date || null, req.user.id],
+      );
+      const created = [];
+      for (const classRow of classes.rows) {
+        const result = await client.query(
+          `INSERT INTO exams
+             (name,exam_type,academic_year,class,section,start_date,end_date,
+              default_total_marks,created_by,fee_clearance_required,
+              fee_clearance_mode,fee_required_amount,fee_clearance_cutoff_date,
+              exam_cycle_id,class_id,class_teacher_id,assignment_status)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
+           RETURNING *`,
+          [
+            name.trim(), exam_type, academic_year, classRow.grade, classRow.section,
+            start_date || null, end_date || null, Number(default_total_marks),
+            req.user.id, Boolean(fee_clearance_required), fee_clearance_mode,
+            Number(fee_required_amount || 0), fee_clearance_cutoff_date || null,
+            cycle.rows[0].id, classRow.id, classRow.teacher_id,
+            classRow.teacher_id ? "assigned" : "unassigned",
+          ],
+        );
+        created.push(result.rows[0]);
+      }
+      await client.query("COMMIT");
+      return res.status(201).json({
+        cycle: cycle.rows[0],
+        exams: created,
+        created_count: created.length,
+        unassigned_count: created.filter((exam) => !exam.class_teacher_id).length,
+      });
+    }
+    const classRecord = section
+      ? await client.query(
+          `SELECT id,teacher_id FROM classes
+            WHERE LOWER(TRIM(COALESCE(NULLIF(grade,''),class_name)))=LOWER(TRIM($1))
+              AND LOWER(TRIM(section))=LOWER(TRIM($2)) LIMIT 1`,
+          [className, section],
+        )
+      : { rows: [] };
+    const result = await client.query(
       `INSERT INTO exams
          (name, exam_type, academic_year, class, section, start_date, end_date,
           default_total_marks, created_by, fee_clearance_required,
-          fee_clearance_mode, fee_required_amount, fee_clearance_cutoff_date)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+          fee_clearance_mode, fee_required_amount, fee_clearance_cutoff_date,
+          class_id,class_teacher_id,assignment_status)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
        RETURNING *`,
       [
         name.trim(),
@@ -443,12 +588,19 @@ const createExam = async (req, res) => {
         fee_clearance_mode,
         Number(fee_required_amount || 0),
         fee_clearance_cutoff_date || null,
+        classRecord.rows[0]?.id || null,
+        classRecord.rows[0]?.teacher_id || null,
+        classRecord.rows[0]?.teacher_id ? "assigned" : "unassigned",
       ],
     );
+    await client.query("COMMIT");
     res.status(201).json(result.rows[0]);
   } catch (error) {
+    await client.query("ROLLBACK");
     console.error("createExam:", error);
-    res.status(500).json({ message: "Failed to create exam" });
+    res.status(400).json({ message: error.message || "Failed to create exam" });
+  } finally {
+    client.release();
   }
 };
 
@@ -484,6 +636,43 @@ const updateExam = async (req, res) => {
       Number(fee_required_amount) <= 0
     ) {
       return res.status(400).json({ message: "Required fee amount must be greater than zero" });
+    }
+    if (start_date || end_date) {
+      const currentExam = await pool.query(
+        "SELECT start_date,end_date,status FROM exams WHERE id=$1",
+        [req.params.id],
+      );
+      if (!currentExam.rows.length) {
+        return res.status(404).json({ message: "Exam not found" });
+      }
+      if (["submitted", "approved", "result_published"].includes(currentExam.rows[0].status)) {
+        return res.status(409).json({
+          message: "Exam dates cannot be changed after the class result is submitted",
+        });
+      }
+      const effectiveStart =
+        start_date || dateOnly(currentExam.rows[0].start_date);
+      const effectiveEnd =
+        end_date || dateOnly(currentExam.rows[0].end_date);
+      if (!effectiveStart || !effectiveEnd) {
+        return res.status(400).json({
+          message: "Both exam start and end dates are required",
+        });
+      }
+      const outsideSchedule = await pool.query(
+        `SELECT subject,exam_date FROM exam_schedule
+          WHERE exam_id=$1 AND (exam_date<$2::date OR exam_date>$3::date)
+          ORDER BY exam_date LIMIT 1`,
+        [req.params.id, effectiveStart, effectiveEnd],
+      );
+      if (outsideSchedule.rows.length) {
+        const row = outsideSchedule.rows[0];
+        return res.status(409).json({
+          message: `${row.subject} is scheduled on ${dateOnly(
+            row.exam_date,
+          )}. Update the date sheet before narrowing the exam dates.`,
+        });
+      }
     }
     const result = await pool.query(
       `UPDATE exams SET
@@ -613,7 +802,7 @@ const saveMarks = async (req, res) => {
         item.remarks || null,
         gradeFor(obtained, total),
         null,
-        exam.status === "published",
+        ["published", "result_published"].includes(exam.status),
         item.student_id,
         exam.id,
         item.subject.trim(),
@@ -621,7 +810,7 @@ const saveMarks = async (req, res) => {
       if (existing.rows.length) {
         await client.query(
           `UPDATE results SET marks_obtained = $1, total_marks = $2, remarks = $3,
-             grade = $4, teacher_id = $5, published = $6, subject = $9,
+             grade = $4, published = $6, subject = $9,
              exam_type = $10, exam_date = $11, updated_at = NOW()
            WHERE id = $12`,
           [
@@ -667,6 +856,7 @@ const getResultSubmissions = async (req, res) => {
     }
     const result = await pool.query(
       `SELECT rs.*, e.name AS exam_name, e.class, e.academic_year,
+              e.status AS exam_status,
               u.name AS teacher_name,
               COUNT(marked_student.id)::int AS marks_count
        FROM result_submissions rs
@@ -709,22 +899,107 @@ const reviewResultSubmission = async (req, res) => {
   }
   try {
     const status = action === "approve" ? "approved" : "returned";
-    const result = await pool.query(
-      `UPDATE result_submissions
-       SET status=$1, feedback=$2, reviewed_at=NOW(), reviewed_by=$3, updated_at=NOW()
-       WHERE id=$4 AND status IN ('submitted','approved')
-       RETURNING *`,
-      [status, feedback.trim() || null, req.user.id, req.params.id],
-    );
-    if (!result.rows.length) {
-      return res
-        .status(409)
-        .json({ message: "Submission is not awaiting review" });
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const target = await client.query(
+        `SELECT exam_id,teacher_id,section FROM result_submissions
+          WHERE id=$1 AND status IN ('submitted','approved') FOR UPDATE`,
+        [req.params.id],
+      );
+      if (!target.rows.length) {
+        await client.query("ROLLBACK");
+        return res
+          .status(409)
+          .json({ message: "Class result is not awaiting review" });
+      }
+      const row = target.rows[0];
+      const result = await client.query(
+        `UPDATE result_submissions
+            SET status=$1,feedback=$2,reviewed_at=NOW(),reviewed_by=$3,updated_at=NOW()
+          WHERE exam_id=$4 AND teacher_id=$5
+            AND LOWER(TRIM(section))=LOWER(TRIM($6))
+            AND status IN ('submitted','approved')
+          RETURNING *`,
+        [
+          status,
+          feedback.trim() || null,
+          req.user.id,
+          row.exam_id,
+          row.teacher_id,
+          row.section,
+        ],
+      );
+      await client.query(
+        "UPDATE exams SET status=$1,updated_at=NOW() WHERE id=$2",
+        [status, row.exam_id],
+      );
+      await client.query("COMMIT");
+      res.json({
+        ...result.rows[0],
+        reviewed_subjects: result.rowCount,
+        message:
+          action === "approve"
+            ? "Complete class result approved"
+            : "Complete class result returned to the class teacher",
+      });
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
     }
-    res.json(result.rows[0]);
   } catch (error) {
     console.error("reviewResultSubmission:", error);
     res.status(500).json({ message: "Failed to review submission" });
+  }
+};
+
+const releaseExam = async (req, res) => {
+  try {
+    const exam = await pool.query(
+      `SELECT e.*,COALESCE(c.teacher_id,e.class_teacher_id) AS assigned_teacher_id
+         FROM exams e LEFT JOIN classes c ON c.id=e.class_id
+        WHERE e.id=$1`,
+      [req.params.id],
+    );
+    if (!exam.rows.length) {
+      return res.status(404).json({ message: "Exam not found" });
+    }
+    if (!exam.rows[0].assigned_teacher_id) {
+      return res.status(409).json({
+        message: "Assign a class teacher before releasing this exam",
+      });
+    }
+    const schedule = await pool.query(
+      `SELECT COUNT(*)::int AS subjects,
+              COUNT(*) FILTER (WHERE published=TRUE)::int AS published
+         FROM exam_schedule WHERE exam_id=$1`,
+      [req.params.id],
+    );
+    if (!schedule.rows[0].subjects) {
+      return res.status(409).json({
+        message: "Create the subject-wise date sheet before releasing this exam",
+      });
+    }
+    if (schedule.rows[0].published < schedule.rows[0].subjects) {
+      return res.status(409).json({
+        message: "Publish every date-sheet entry before releasing this exam",
+      });
+    }
+    const result = await pool.query(
+      `UPDATE exams SET status='released',
+         class_teacher_id=$2,assignment_status='assigned',updated_at=NOW()
+       WHERE id=$1 RETURNING *`,
+      [req.params.id, exam.rows[0].assigned_teacher_id],
+    );
+    res.json({
+      exam: result.rows[0],
+      message: `Exam released to the class teacher with ${schedule.rows[0].subjects} subjects`,
+    });
+  } catch (error) {
+    console.error("releaseExam:", error);
+    res.status(500).json({ message: "Failed to release exam" });
   }
 };
 
@@ -745,8 +1020,70 @@ const publishExam = async (req, res) => {
           message: `${pending.rows[0].count} teacher submission(s) still need approval`,
         });
       }
+      const lifecycle = await client.query(
+        "SELECT status FROM exams WHERE id=$1 FOR UPDATE",
+        [req.params.id],
+      );
+      if (!lifecycle.rows.length) {
+        await client.query("ROLLBACK");
+        return res.status(404).json({ message: "Exam not found" });
+      }
+      if (lifecycle.rows[0].status !== "approved") {
+        await client.query("ROLLBACK");
+        return res.status(409).json({
+          message: "Approve the class-teacher result before publishing it",
+        });
+      }
+      const readiness = await client.query(
+        `SELECT COUNT(*)::int AS marks,
+                COUNT(DISTINCT student_id)::int AS students,
+                COUNT(*) FILTER (WHERE teacher_id IS NOT NULL)::int AS teacher_marks
+           FROM results WHERE exam_id=$1`,
+        [req.params.id],
+      );
+      if (!readiness.rows[0].marks || !readiness.rows[0].students) {
+        await client.query("ROLLBACK");
+        return res.status(409).json({
+          message: "Result cannot be published until class marks are entered and approved",
+        });
+      }
+      if (readiness.rows[0].teacher_marks > 0) {
+        const subjectReadiness = await client.query(
+          `WITH target_exam AS (
+             SELECT e.*, COALESCE(e.section,c.section) AS target_section
+               FROM exams e LEFT JOIN classes c ON c.id=e.class_id
+              WHERE e.id=$1
+           ),
+           expected AS (
+             SELECT es.subject FROM exam_schedule es WHERE es.exam_id=$1
+             UNION
+             SELECT ts.subject
+               FROM teacher_subjects ts, target_exam e
+              WHERE LOWER(TRIM(ts.class_name))=LOWER(TRIM(e.class))
+                AND LOWER(TRIM(ts.section))=LOWER(TRIM(e.target_section))
+             UNION
+             SELECT tt.subject
+               FROM timetable tt, target_exam e
+              WHERE tt.class_id=e.class_id
+             UNION
+             SELECT r.subject FROM results r WHERE r.exam_id=$1
+           )
+           SELECT
+             (SELECT COUNT(*) FROM expected)::int AS expected,
+             (SELECT COUNT(DISTINCT LOWER(TRIM(subject)))
+                FROM result_submissions
+               WHERE exam_id=$1 AND status='approved')::int AS approved`,
+          [req.params.id],
+        );
+        if (subjectReadiness.rows[0].approved < subjectReadiness.rows[0].expected) {
+          await client.query("ROLLBACK");
+          return res.status(409).json({
+            message: `${subjectReadiness.rows[0].expected - subjectReadiness.rows[0].approved} class-teacher subject submission(s) still need approval`,
+          });
+        }
+      }
       const exam = await client.query(
-        "UPDATE exams SET status = 'published', updated_at = NOW() WHERE id = $1 RETURNING *",
+        "UPDATE exams SET status = 'result_published', updated_at = NOW() WHERE id = $1 RETURNING *",
         [req.params.id],
       );
       if (!exam.rows.length) {
@@ -988,7 +1325,7 @@ const uploadResultFile = async (req, res) => {
                 row.remarks || null,
                 gradeFor(obtained, total),
                 null,
-                exam.status === "published",
+                ["published", "result_published"].includes(exam.status),
               ],
             );
           }
@@ -1041,6 +1378,7 @@ module.exports = {
   submitTeacherMarks,
   getResultSubmissions,
   reviewResultSubmission,
+  releaseExam,
   publishExam,
   getFeeClearance,
   updateFeeClearanceOverride,

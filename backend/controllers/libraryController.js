@@ -174,6 +174,12 @@ const issueBook = async (req, res) => {
       .status(400)
       .json({ message: "Book, student, and due date are required" });
   }
+  const today = new Date().toISOString().slice(0, 10);
+  if (due_date < today) {
+    return res
+      .status(400)
+      .json({ message: "Book due date cannot be earlier than today" });
+  }
   const client = await pool.connect();
   try {
     await client.query("BEGIN");

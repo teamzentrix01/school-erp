@@ -38,6 +38,12 @@ router.get(
   authorizeRoles("student"),
   controller.getStudentExaminations,
 );
+router.get(
+  "/teacher/admit-cards",
+  protect,
+  authorizeRoles("teacher"),
+  controller.getTeacherAdmitCards,
+);
 router.use(protect, authorizeRoles("admin"));
 router.get("/", controller.getExaminationAdmin);
 router.post("/schedule", controller.saveSchedule);

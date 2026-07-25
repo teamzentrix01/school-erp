@@ -3,6 +3,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Sidebar from "@/components/Sidebar";
 import {
+  ConfirmDialog,
+  ToastMessage,
+} from "@/components/ActionFeedback";
+import {
   Award,
   BookOpen,
   CheckCircle,
@@ -60,6 +64,7 @@ function ExamModal({ classes, initial = null, onClose, onSaved }) {
     academic_year: initial?.academic_year || currentAcademicYear(),
     class: initial?.class || "",
     section: initial?.section || "",
+    class_ids: [],
     start_date: initial?.start_date?.slice(0, 10) || "",
     end_date: initial?.end_date?.slice(0, 10) || "",
     default_total_marks: initial?.default_total_marks || 100,
@@ -75,8 +80,19 @@ function ExamModal({ classes, initial = null, onClose, onSaved }) {
     "w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-200";
   const set = (key, value) =>
     setForm((current) => ({ ...current, [key]: value }));
+  const toggleClass = (classId) =>
+    setForm((current) => ({
+      ...current,
+      class_ids: current.class_ids.includes(classId)
+        ? current.class_ids.filter((id) => id !== classId)
+        : [...current.class_ids, classId],
+    }));
 
   const submit = async () => {
+    if (!initial && !form.class_ids.length) {
+      setError("Select at least one class-section for this exam cycle.");
+      return;
+    }
     setSaving(true);
     setError("");
     try {
@@ -140,44 +156,82 @@ function ExamModal({ classes, initial = null, onClose, onSaved }) {
               onChange={(e) => set("academic_year", e.target.value)}
             />
           </label>
-          <label className="text-xs font-semibold text-gray-500">
-            Class
-            <select
-              className={`${inputClass} mt-1.5`}
-              value={form.class}
-              onChange={(e) => set("class", e.target.value)}
-            >
-              <option value="">Select class</option>
-              {[
-                ...new Set(
-                  classes.map((item) => item.grade || item.class_name),
-                ),
-              ].map((item) => (
-                <option key={item}>{item}</option>
-              ))}
-            </select>
-          </label>
-          <label className="text-xs font-semibold text-gray-500">
-            Section
-            <select
-              className={`${inputClass} mt-1.5`}
-              value={form.section}
-              onChange={(e) => set("section", e.target.value)}
-            >
-              <option value="">All sections</option>
-              {classes
-                .filter(
-                  (item) =>
-                    !form.class ||
-                    (item.grade || item.class_name) === form.class,
-                )
-                .map((item) => (
-                  <option key={item.id} value={item.section}>
-                    {item.section}
-                  </option>
-                ))}
-            </select>
-          </label>
+          {initial ? (
+            <>
+              <label className="text-xs font-semibold text-gray-500">
+                Class
+                <input
+                  className={`${inputClass} mt-1.5 bg-gray-50`}
+                  value={form.class}
+                  disabled
+                />
+              </label>
+              <label className="text-xs font-semibold text-gray-500">
+                Section
+                <input
+                  className={`${inputClass} mt-1.5 bg-gray-50`}
+                  value={form.section}
+                  disabled
+                />
+              </label>
+            </>
+          ) : (
+            <fieldset className="sm:col-span-2">
+              <legend className="text-xs font-semibold text-gray-500">
+                Classes and sections
+              </legend>
+              <p className="mt-1 text-xs text-gray-400">
+                One class exam will be created for each selection and assigned
+                to its class teacher.
+              </p>
+              <div className="mt-2 grid max-h-52 gap-2 overflow-y-auto rounded-lg border border-gray-200 p-3 sm:grid-cols-2">
+                {classes.map((item) => {
+                  const classId = Number(item.dbId);
+                  const checked = form.class_ids.includes(classId);
+                  return (
+                    <label
+                      key={item.id}
+                      className={`flex cursor-pointer items-start gap-2 rounded-lg border p-2.5 text-sm ${
+                        checked
+                          ? "border-blue-300 bg-blue-50"
+                          : "border-gray-100"
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        className="mt-0.5"
+                        checked={checked}
+                        onChange={() => toggleClass(classId)}
+                      />
+                      <span>
+                        <strong className="block text-gray-800">
+                          {item.grade}-{item.section}
+                        </strong>
+                        <span
+                          className={`text-xs ${
+                            item.teacherId ? "text-gray-500" : "text-red-600"
+                          }`}
+                        >
+                          {item.teacherId
+                            ? `Class teacher: ${item.classTeacher}`
+                            : "No class teacher assigned"}
+                        </span>
+                      </span>
+                    </label>
+                  );
+                })}
+                {!classes.length && (
+                  <p className="text-xs text-gray-400">
+                    Create classes before creating an exam.
+                  </p>
+                )}
+              </div>
+              <p className="mt-2 text-xs font-medium text-blue-600">
+                {form.class_ids.length} class-section
+                {form.class_ids.length === 1 ? "" : "s"} selected
+              </p>
+            </fieldset>
+          )}
           <label className="text-xs font-semibold text-gray-500">
             Start date
             <input
@@ -285,7 +339,7 @@ function ExamModal({ classes, initial = null, onClose, onSaved }) {
             ) : (
               <Plus size={14} />
             )}{" "}
-            {initial ? "Save Changes" : "Create"}
+            {initial ? "Save Changes" : "Create Exam Cycle"}
           </button>
         </div>
       </div>
@@ -293,28 +347,78 @@ function ExamModal({ classes, initial = null, onClose, onSaved }) {
   );
 }
 
-function ExamsTab({ exams, classes, load, selectExam }) {
+function ExamsTab({ exams, classes, load, selectExam, notify }) {
   const [showModal, setShowModal] = useState(false);
   const [editingExam, setEditingExam] = useState(null);
+  const [confirmation, setConfirmation] = useState(null);
+  const [actionBusy, setActionBusy] = useState(false);
+
+  const runConfirmed = async () => {
+    if (!confirmation?.action) return;
+    setActionBusy(true);
+    try {
+      await confirmation.action();
+      setConfirmation(null);
+    } finally {
+      setActionBusy(false);
+    }
+  };
+
   const remove = async (id) => {
-    if (!window.confirm("Delete this exam and its marks?")) return;
-    await apiFetch(`/exams/${id}`, { method: "DELETE" });
-    load();
+    setConfirmation({
+      title: "Delete exam?",
+      message:
+        "This exam, its date sheet, admit cards and marks will be deleted permanently.",
+      confirmLabel: "Delete Exam",
+      tone: "danger",
+      action: async () => {
+        try {
+          await apiFetch(`/exams/${id}`, { method: "DELETE" });
+          notify("Exam deleted successfully.");
+          load();
+        } catch (error) {
+          notify(error.message, "error");
+        }
+      },
+    });
   };
   const publish = async (id) => {
-    if (
-      !window.confirm(
-        "Publish this exam? Students will be able to see its results.",
-      )
-    )
-      return;
-    try {
-      const result = await apiFetch(`/exams/${id}/publish`, { method: "POST" });
-      window.alert(result.message || "Exam published successfully.");
-      load();
-    } catch (error) {
-      window.alert(error.message);
-    }
+    setConfirmation({
+      title: "Publish final result?",
+      message:
+        "Approved marks will become visible to eligible students immediately.",
+      confirmLabel: "Publish Result",
+      action: async () => {
+        try {
+          const result = await apiFetch(`/exams/${id}/publish`, {
+            method: "POST",
+          });
+          notify(result.message || "Result published successfully.");
+          load();
+        } catch (error) {
+          notify(error.message, "error");
+        }
+      },
+    });
+  };
+  const release = async (id) => {
+    setConfirmation({
+      title: "Release exam to class teacher?",
+      message:
+        "The complete published date sheet and all configured subjects will be assigned to the class teacher.",
+      confirmLabel: "Release Exam",
+      action: async () => {
+        try {
+          const result = await apiFetch(`/exams/${id}/release`, {
+            method: "POST",
+          });
+          notify(result.message || "Exam released successfully.");
+          load();
+        } catch (error) {
+          notify(error.message, "error");
+        }
+      },
+    });
   };
   return (
     <>
@@ -364,6 +468,17 @@ function ExamsTab({ exams, classes, load, selectExam }) {
                 <td className="px-4 py-3">
                   {exam.class}
                   {exam.section ? `-${exam.section}` : ""}
+                  <p
+                    className={`mt-1 text-xs ${
+                      exam.effective_class_teacher_id
+                        ? "text-gray-500"
+                        : "text-red-600"
+                    }`}
+                  >
+                    {exam.effective_class_teacher_id
+                      ? `Class teacher: ${exam.class_teacher_name || "Assigned"}`
+                      : "Class teacher not assigned"}
+                  </p>
                 </td>
                 <td className="px-4 py-3 text-gray-500">
                   {exam.start_date?.slice(0, 10) || "-"} to{" "}
@@ -374,9 +489,17 @@ function ExamsTab({ exams, classes, load, selectExam }) {
                 </td>
                 <td className="px-4 py-3">
                   <span
-                    className={`text-xs font-semibold px-2 py-1 rounded-full ${exam.status === "published" ? "bg-green-50 text-green-700" : "bg-amber-50 text-amber-700"}`}
+                    className={`text-xs font-semibold px-2 py-1 rounded-full ${
+                      ["approved", "published", "result_published"].includes(
+                        exam.status,
+                      )
+                        ? "bg-green-50 text-green-700"
+                        : exam.status === "returned"
+                          ? "bg-red-50 text-red-700"
+                          : "bg-amber-50 text-amber-700"
+                    }`}
                   >
-                    {exam.status}
+                    {exam.status.replaceAll("_", " ")}
                   </span>
                 </td>
                 <td className="px-4 py-3">
@@ -385,7 +508,9 @@ function ExamsTab({ exams, classes, load, selectExam }) {
                       onClick={() => selectExam(exam)}
                       className="px-3 py-1.5 text-xs font-semibold bg-blue-50 text-blue-700 rounded-lg"
                     >
-                      Enter Marks
+                      {Number(exam.marks_count) > 0
+                        ? "Edit Marks"
+                        : "Enter Marks"}
                     </button>
                     <button
                       onClick={() => setEditingExam(exam)}
@@ -394,13 +519,22 @@ function ExamsTab({ exams, classes, load, selectExam }) {
                     >
                       <Pencil size={14} />
                     </button>
-                    {exam.status !== "published" && (
+                    {exam.status === "draft" && (
+                      <button
+                        onClick={() => release(exam.id)}
+                        className="p-2 text-blue-600"
+                        title="Release exam to class teacher"
+                      >
+                        <Send size={14} />
+                      </button>
+                    )}
+                    {exam.status === "approved" && (
                       <button
                         onClick={() => publish(exam.id)}
                         className="p-2 text-green-600"
-                        title="Publish"
+                        title="Publish final result"
                       >
-                        <Send size={14} />
+                        <ShieldCheck size={14} />
                       </button>
                     )}
                     <button
@@ -426,7 +560,10 @@ function ExamsTab({ exams, classes, load, selectExam }) {
         <ExamModal
           classes={classes}
           onClose={() => setShowModal(false)}
-          onSaved={load}
+          onSaved={async () => {
+            await load();
+            notify("Exam cycle created successfully.");
+          }}
         />
       )}
       {editingExam && (
@@ -434,9 +571,19 @@ function ExamsTab({ exams, classes, load, selectExam }) {
           classes={classes}
           initial={editingExam}
           onClose={() => setEditingExam(null)}
-          onSaved={load}
+          onSaved={async () => {
+            await load();
+            notify("Exam updated successfully.");
+          }}
         />
       )}
+      <ConfirmDialog
+        {...confirmation}
+        open={Boolean(confirmation)}
+        busy={actionBusy}
+        onCancel={() => setConfirmation(null)}
+        onConfirm={runConfirmed}
+      />
     </>
   );
 }
@@ -471,6 +618,28 @@ function MarksTab({ exams, selectedExam, setSelectedExam }) {
     });
     return [...map.values()];
   }, [rows]);
+
+  const existingSubjects = useMemo(
+    () => [
+      ...new Set(
+        rows
+          .map((row) => row.subject?.trim())
+          .filter(Boolean)
+          .map((item) => item),
+      ),
+    ],
+    [rows],
+  );
+
+  useEffect(() => {
+    if (!existingSubjects.length) return;
+    const selectedSubjectExists = existingSubjects.some(
+      (item) => item.toLowerCase() === subject.toLowerCase(),
+    );
+    if (!selectedSubjectExists) {
+      setSubject(existingSubjects[0]);
+    }
+  }, [existingSubjects, subject]);
 
   useEffect(() => {
     if (!subject) {
@@ -527,11 +696,12 @@ function MarksTab({ exams, selectedExam, setSelectedExam }) {
         <select
           className="px-3 py-2.5 border border-gray-200 rounded-lg text-sm"
           value={selectedExam?.id || ""}
-          onChange={(e) =>
+          onChange={(e) => {
+            setSubject("");
             setSelectedExam(
               exams.find((exam) => String(exam.id) === e.target.value) || null,
-            )
-          }
+            );
+          }}
         >
           <option value="">Select exam</option>
           {exams.map((exam) => (
@@ -541,12 +711,26 @@ function MarksTab({ exams, selectedExam, setSelectedExam }) {
             </option>
           ))}
         </select>
-        <input
-          className="px-3 py-2.5 border border-gray-200 rounded-lg text-sm flex-1"
-          value={subject}
-          onChange={(e) => setSubject(e.target.value)}
-          placeholder="Subject, e.g. Mathematics"
-        />
+        {existingSubjects.length ? (
+          <select
+            className="flex-1 rounded-lg border border-gray-200 px-3 py-2.5 text-sm"
+            value={subject}
+            onChange={(e) => setSubject(e.target.value)}
+          >
+            {existingSubjects.map((item) => (
+              <option key={item} value={item}>
+                {item}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <input
+            className="flex-1 rounded-lg border border-gray-200 px-3 py-2.5 text-sm"
+            value={subject}
+            onChange={(e) => setSubject(e.target.value)}
+            placeholder="Subject, e.g. Mathematics"
+          />
+        )}
         <button
           onClick={save}
           disabled={saving || !selectedExam}
@@ -557,7 +741,7 @@ function MarksTab({ exams, selectedExam, setSelectedExam }) {
           ) : (
             <Save size={14} />
           )}
-          Save Marks
+          {existingSubjects.length ? "Save Edited Marks" : "Save Marks"}
         </button>
       </div>
       {message && (
@@ -666,6 +850,7 @@ function ReviewsTab() {
   const [busyId, setBusyId] = useState(null);
   const [feedback, setFeedback] = useState({});
   const [message, setMessage] = useState("");
+  const [publishTarget, setPublishTarget] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -700,6 +885,23 @@ function ReviewsTab() {
       setMessage(
         action === "approve" ? "Marks approved." : "Marks returned to teacher.",
       );
+      await load();
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const publishResult = async (submission) => {
+    const publishBusyId = `publish-${submission.exam_id}`;
+    setBusyId(publishBusyId);
+    setMessage("");
+    try {
+      const response = await apiFetch(`/exams/${submission.exam_id}/publish`, {
+        method: "POST",
+      });
+      setMessage(response.message || "Result published to students.");
       await load();
     } catch (error) {
       setMessage(error.message);
@@ -803,9 +1005,30 @@ function ReviewsTab() {
                         <Undo2 size={13} /> Return
                       </button>
                     </div>
+                  ) : item.status === "approved" &&
+                    item.exam_status !== "result_published" ? (
+                    <div className="flex items-center gap-3">
+                      <p className="text-xs text-gray-500">
+                        {item.feedback || "Approved and ready to publish"}
+                      </p>
+                      <button
+                        onClick={() => setPublishTarget(item)}
+                        disabled={busyId === `publish-${item.exam_id}`}
+                        className="flex items-center gap-1 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
+                      >
+                        {busyId === `publish-${item.exam_id}` ? (
+                          <Loader2 size={13} className="animate-spin" />
+                        ) : (
+                          <Send size={13} />
+                        )}
+                        Publish Result
+                      </button>
+                    </div>
                   ) : (
                     <p className="text-xs text-gray-500">
-                      {item.feedback || "No feedback"}
+                      {item.exam_status === "result_published"
+                        ? "Result published to students"
+                        : item.feedback || "No feedback"}
                     </p>
                   )}
                 </td>
@@ -819,6 +1042,27 @@ function ReviewsTab() {
           </div>
         )}
       </div>
+      <ConfirmDialog
+        open={Boolean(publishTarget)}
+        title="Publish final result?"
+        message={
+          publishTarget
+            ? `${publishTarget.exam_name} approved marks will become visible in the student portal.`
+            : ""
+        }
+        confirmLabel="Publish Result"
+        busy={
+          publishTarget
+            ? busyId === `publish-${publishTarget.exam_id}`
+            : false
+        }
+        onCancel={() => setPublishTarget(null)}
+        onConfirm={async () => {
+          const target = publishTarget;
+          setPublishTarget(null);
+          await publishResult(target);
+        }}
+      />
     </div>
   );
 }
@@ -1292,6 +1536,12 @@ export default function ResultsPage() {
   const [selectedExam, setSelectedExam] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [toast, setToast] = useState(null);
+
+  const notify = useCallback((message, type = "success") => {
+    setToast({ message, type });
+    window.setTimeout(() => setToast(null), 3500);
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -1316,7 +1566,13 @@ export default function ResultsPage() {
     load();
   }, [load]);
 
-  const published = exams.filter((exam) => exam.status === "published").length;
+  const published = exams.filter((exam) =>
+    ["published", "result_published"].includes(exam.status),
+  ).length;
+  const drafts = exams.filter((exam) => exam.status === "draft").length;
+  const awaitingPublication = exams.filter(
+    (exam) => exam.status === "approved",
+  ).length;
   const tabs = [
     ["exams", "Exams", Award],
     ["marks", "Marks Entry", BookOpen],
@@ -1349,11 +1605,12 @@ export default function ResultsPage() {
           </div>
         </header>
         <div className="p-5 lg:p-8 space-y-5">
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             {[
               ["Total Exams", exams.length],
               ["Published", published],
-              ["Draft", exams.length - published],
+              ["Draft", drafts],
+              ["Awaiting Publication", awaitingPublication],
             ].map(([label, value]) => (
               <div
                 key={label}
@@ -1392,6 +1649,7 @@ export default function ResultsPage() {
                   exams={exams}
                   classes={classes}
                   load={load}
+                  notify={notify}
                   selectExam={(exam) => {
                     setSelectedExam(exam);
                     setTab("marks");
@@ -1413,6 +1671,7 @@ export default function ResultsPage() {
           )}
         </div>
       </main>
+      <ToastMessage toast={toast} onClose={() => setToast(null)} />
     </div>
   );
 }

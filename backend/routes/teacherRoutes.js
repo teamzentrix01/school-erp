@@ -18,6 +18,9 @@ const {
   saveTeacherMarks,
   submitTeacherMarks,
 } = require("../controllers/resultsController");
+const {
+  getTeacherAdmitCards,
+} = require("../controllers/examinationController");
 
 router.use(protect, authorizeRoles("teacher"));
 
@@ -33,5 +36,6 @@ router.get("/result-exams", getTeacherExams);
 router.get("/result-exams/:id/marks", getTeacherExamMarks);
 router.put("/result-exams/:id/marks", saveTeacherMarks);
 router.post("/result-exams/:id/submit", submitTeacherMarks);
+router.get("/admit-cards", getTeacherAdmitCards);
 
 module.exports = router;

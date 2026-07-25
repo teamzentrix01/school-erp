@@ -195,7 +195,7 @@ export default function TeacherResultsPage() {
           marks: payload(),
         }),
       });
-      await apiFetch(`/teacher/result-exams/${selected.id}/submit`, {
+      const result = await apiFetch(`/teacher/result-exams/${selected.id}/submit`, {
         method: "POST",
         body: JSON.stringify({
           subject: selected.subject,
@@ -204,7 +204,9 @@ export default function TeacherResultsPage() {
       });
       await loadMarks();
       await loadAssignments();
-      setMessage("Marks submitted to admin for review.");
+      setMessage(
+        result.message || "Complete class result submitted to admin for review.",
+      );
     } catch (err) {
       setError(err.message);
     } finally {
@@ -333,7 +335,8 @@ export default function TeacherResultsPage() {
             <div>
               <h1 className="text-xl font-bold text-gray-900">Results Entry</h1>
               <p className="mt-1 text-sm text-gray-500">
-                Enter class marks, save drafts, and submit them for approval.
+                Coordinate every subject result for your class, save drafts,
+                and submit them for admin approval.
               </p>
             </div>
             <button
@@ -349,7 +352,7 @@ export default function TeacherResultsPage() {
         <div className="space-y-5 p-5 lg:p-8">
           <section className="rounded-lg border border-orange-200 bg-white p-4">
             <label className="block text-xs font-semibold text-gray-500">
-              Assigned exam, class and subject
+              Class-teacher exam assignment
               <select
                 className="mt-1.5 w-full rounded-lg border border-orange-200 px-3 py-2.5 text-sm"
                 value={selectedKey}
@@ -564,7 +567,7 @@ export default function TeacherResultsPage() {
                   }
                   className="flex items-center justify-center gap-2 rounded-lg bg-orange-600 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
                 >
-                  <Send size={15} /> Submit for Review
+                  <Send size={15} /> Submit Class Result
                 </button>
               </div>
             </>
@@ -577,10 +580,11 @@ export default function TeacherResultsPage() {
                 className="mx-auto mb-3 text-orange-500"
               />
               <p className="font-semibold text-gray-800">
-                No result assignments available
+                No class-teacher exam assignments available
               </p>
               <p className="mt-1 text-sm text-gray-500">
-                Ask admin to create an exam for your assigned class and subject.
+                Ask admin to create an exam for your class and configure its
+                subjects or date sheet.
               </p>
             </div>
           )}

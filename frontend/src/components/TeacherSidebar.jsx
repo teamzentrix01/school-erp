@@ -32,6 +32,11 @@ const TEACHER_NAV = [
       { icon: Users, label: "My Class", href: "/teachers/class" },
       { icon: QrCode, label: "QR Attendance", href: "/teachers/attendance" },
       { icon: BarChart3, label: "Results", href: "/teachers/results" },
+      {
+        icon: CreditCard,
+        label: "Admit Cards",
+        href: "/teachers/admit-cards",
+      },
       { icon: Bell, label: "Notices", href: "/teachers/notices" },
     ],
   },

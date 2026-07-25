@@ -37,6 +37,12 @@ const createHomework = async (req, res) => {
     if (!title || !subject || !section || !due_date) {
       return res.status(400).json({ message: "All fields are required." });
     }
+    const today = new Date().toISOString().slice(0, 10);
+    if (due_date < today) {
+      return res
+        .status(400)
+        .json({ message: "Homework due date cannot be in the past." });
+    }
 
     // class_id null ho sakta hai subject teachers ke liye
     // In that case, class_id column NULL allow karna hoga ya skip karo

@@ -87,6 +87,19 @@ async function initDatabase() {
       updated_at TIMESTAMP NOT NULL DEFAULT NOW()
     );
 
+    CREATE TABLE IF NOT EXISTS exam_cycles (
+      id SERIAL PRIMARY KEY,
+      name VARCHAR(150) NOT NULL,
+      exam_type VARCHAR(60) NOT NULL,
+      academic_year VARCHAR(20) NOT NULL,
+      start_date DATE,
+      end_date DATE,
+      status VARCHAR(30) NOT NULL DEFAULT 'draft',
+      created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+    );
+
     CREATE TABLE IF NOT EXISTS result_uploads (
       id SERIAL PRIMARY KEY,
       exam_id INTEGER REFERENCES exams(id) ON DELETE CASCADE,
@@ -532,6 +545,24 @@ async function initDatabase() {
     ALTER TABLE exams ADD COLUMN IF NOT EXISTS fee_clearance_mode VARCHAR(20) NOT NULL DEFAULT 'full';
     ALTER TABLE exams ADD COLUMN IF NOT EXISTS fee_required_amount NUMERIC(12,2) NOT NULL DEFAULT 0;
     ALTER TABLE exams ADD COLUMN IF NOT EXISTS fee_clearance_cutoff_date DATE;
+    ALTER TABLE exams ADD COLUMN IF NOT EXISTS exam_cycle_id INTEGER REFERENCES exam_cycles(id) ON DELETE SET NULL;
+    ALTER TABLE exams ADD COLUMN IF NOT EXISTS class_id INTEGER REFERENCES classes(id) ON DELETE SET NULL;
+    ALTER TABLE exams ADD COLUMN IF NOT EXISTS class_teacher_id INTEGER REFERENCES teachers(id) ON DELETE SET NULL;
+    ALTER TABLE exams ADD COLUMN IF NOT EXISTS assignment_status VARCHAR(30) NOT NULL DEFAULT 'unassigned';
+    UPDATE exams e
+       SET class_id = c.id,
+           class_teacher_id = c.teacher_id,
+           assignment_status = CASE WHEN c.teacher_id IS NULL THEN 'unassigned' ELSE 'assigned' END
+      FROM classes c
+     WHERE e.class_id IS NULL
+       AND e.section IS NOT NULL
+       AND LOWER(TRIM(e.class)) IN (
+         LOWER(TRIM(c.grade)),
+         LOWER(TRIM(c.class_name)),
+         LOWER(TRIM(CONCAT('Class ', c.grade)))
+       )
+       AND (e.section IS NULL OR LOWER(TRIM(e.section)) = LOWER(TRIM(c.section)));
+    UPDATE exams SET assignment_status='unassigned' WHERE class_id IS NULL;
     CREATE TABLE IF NOT EXISTS result_fee_overrides (
       id SERIAL PRIMARY KEY,
       exam_id INTEGER NOT NULL REFERENCES exams(id) ON DELETE CASCADE,
@@ -564,6 +595,8 @@ async function initDatabase() {
     CREATE INDEX IF NOT EXISTS idx_results_student_exam ON results(student_id, exam_id);
     CREATE INDEX IF NOT EXISTS idx_result_fee_overrides_exam ON result_fee_overrides(exam_id);
     CREATE INDEX IF NOT EXISTS idx_result_submissions_status ON result_submissions(status);
+    CREATE INDEX IF NOT EXISTS idx_exams_cycle ON exams(exam_cycle_id);
+    CREATE INDEX IF NOT EXISTS idx_exams_class_teacher ON exams(class_teacher_id);
     CREATE INDEX IF NOT EXISTS idx_fee_payments_paid_on ON fee_payments(paid_on);
     CREATE INDEX IF NOT EXISTS idx_hostel_rooms_hostel ON hostel_rooms(hostel_id);
     CREATE INDEX IF NOT EXISTS idx_hostel_beds_room ON hostel_beds(room_id);

@@ -204,11 +204,23 @@ const createTeacher = async (req, res) => {
 
     await client.query("BEGIN");
 
+    const normalizedEmail = String(email || "").trim().toLowerCase();
+    const existingUser = await client.query(
+      "SELECT role FROM users WHERE LOWER(email) = $1 LIMIT 1",
+      [normalizedEmail],
+    );
+    if (existingUser.rows.length) {
+      await client.query("ROLLBACK");
+      return res.status(409).json({
+        message: `This email is already registered as a ${existingUser.rows[0].role} account. Please use another email.`,
+      });
+    }
+
     // Create user
     const hashedPassword = await bcrypt.hash(password, 10);
     const userResult = await client.query(
       "INSERT INTO users (name, email, password, role) VALUES ($1, $2, $3, 'teacher') RETURNING id",
-      [name, email, hashedPassword],
+      [name, normalizedEmail, hashedPassword],
     );
     const userId = userResult.rows[0].id;
 
@@ -318,6 +330,11 @@ const createTeacher = async (req, res) => {
   } catch (err) {
     await client.query("ROLLBACK");
     console.error("createTeacher:", err);
+    if (err.code === "23505" && err.constraint === "users_email_key") {
+      return res.status(409).json({
+        message: "This email is already registered. Please use another email.",
+      });
+    }
     res.status(500).json({ message: "Server error" });
   } finally {
     client.release();
