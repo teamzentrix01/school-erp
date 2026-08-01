@@ -93,7 +93,7 @@ const {
 } = require("../controllers/adminController");
 
 const {
-  getAllTeachers, getTeacherMeta, createTeacher, deleteTeacher, updateTeacher, uploadTeacherAadharImage,   // ← ADD
+  getAllTeachers, getTeacherMeta, createTeacher, deleteTeacher, updateTeacher, changeTeacherPassword, uploadTeacherAadharImage,   // ← ADD
   updateTeacherAadharNumber,
 } = require("../controllers/teacherController");
 
@@ -155,6 +155,7 @@ router.post("/teachers/:id/aadhar-image",  aadharTeacherUpload.single("aadhar_im
 router.put ("/teachers/:id/aadhar-number", updateTeacherAadharNumber);
 
 router.put   ("/teachers/:id",         teacherUpload.single("profilePicture"), requestValidation, updateTeacher);
+router.put   ("/teachers/:id/password", requestValidation, changeTeacherPassword);
 router.delete("/teachers/:id",         deleteTeacher);
 
 // ── Classes

@@ -120,6 +120,13 @@ const STATUS_MAP = {
     dot: "bg-red-500",
     icon: AlertCircle,
   },
+  "Not Configured": {
+    bg: "bg-gray-100",
+    text: "text-gray-600",
+    ring: "ring-gray-200",
+    dot: "bg-gray-400",
+    icon: AlertCircle,
+  },
 };
 
 const PAYMENT_STATUS = {
@@ -325,7 +332,7 @@ function ClassFeeForm({ cls, onSaved }) {
 // ─── Per-Student Transport Row ────────────────────────────────────────────────
 function StudentTransportRow({ student, onUpdate }) {
   const [transport, setTransport] = useState(
-    String(student.transport_fee || ""),
+    String(Number(student.transport_fee || 0)),
   );
   const [saving, setSaving] = useState(false);
   const dirty = String(student.transport_fee || 0) !== transport;
@@ -373,14 +380,15 @@ function StudentTransportRow({ student, onUpdate }) {
               type="number"
               min="0"
               value={transport}
+              disabled={!student.fee_configured}
               onChange={(e) => setTransport(e.target.value)}
               placeholder="0"
-              className={`w-full pl-6 pr-2 py-1.5 text-xs border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-300 transition-all ${
+              className={`w-full pl-6 pr-2 py-1.5 text-xs border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-300 transition-all disabled:bg-gray-100 disabled:text-gray-400 ${
                 dirty ? "border-blue-300 bg-blue-50" : "border-gray-200"
               }`}
             />
           </div>
-          {dirty && (
+          {dirty && student.fee_configured && (
             <button
               onClick={handleSave}
               disabled={saving}
@@ -1971,6 +1979,12 @@ export default function AdminFeesPage() {
                     </div>
                   )}
 
+                  {!studentsLoading && students.some((student) => !student.fee_configured) && (
+                    <div className="mb-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                      Students are visible, but fee amounts and payment actions remain disabled until base fees are configured for this class-section.
+                    </div>
+                  )}
+
                   {studentsLoading ? (
                     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 space-y-3">
                       {[...Array(5)].map((_, i) => (
@@ -1984,7 +1998,7 @@ export default function AdminFeesPage() {
                     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm py-20 text-center">
                       <p className="text-4xl mb-3">📋</p>
                       <p className="text-sm font-semibold text-gray-500">
-                        First,Set the base fees for this class.
+                        No active students found in this class-section.
                       </p>
                     </div>
                   ) : (

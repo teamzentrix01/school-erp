@@ -953,10 +953,6 @@ function EditTeacherModal({
       if (!form.profilePicture && form.existingProfilePicture) {
         fd.append("existingProfilePicture", form.existingProfilePicture);
       }
-      if (form.newPassword) {
-        fd.append("password", form.newPassword);
-      }
-
       // ── Step 1: Update teacher ───────────────────────────────────────────
       const res = await fetch(`${API_BASE}/api/admin/teachers/${form.id}`, {
         method: "PUT",
@@ -965,6 +961,27 @@ function EditTeacherModal({
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Failed to update");
+
+      if (form.newPassword) {
+        if (form.newPassword.length < 8) {
+          throw new Error("New password must be at least 8 characters");
+        }
+        const passwordRes = await fetch(
+          `${API_BASE}/api/admin/teachers/${form.id}/password`,
+          {
+            method: "PUT",
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ password: form.newPassword }),
+          },
+        );
+        const passwordData = await passwordRes.json().catch(() => ({}));
+        if (!passwordRes.ok) {
+          throw new Error(passwordData.message || "Failed to change password");
+        }
+      }
 
       // ── Step 2: Upload new Aadhaar image if changed ──────────────────────
       if (aadharFile && form.id) {
@@ -2000,14 +2017,19 @@ export default function TeachersPage() {
     try {
       const teacher = teachers.find((t) => t.id === id);
       const dbId = teacher?.dbId;
-      await fetch(`${API_BASE}/api/admin/teachers/${dbId}`, {
+      if (!dbId) throw new Error("Teacher database ID is missing");
+      const response = await fetch(`${API_BASE}/api/admin/teachers/${dbId}`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` },
       });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(result.message || "Failed to delete teacher");
+      }
       setTeachers((p) => p.filter((t) => t.id !== id));
       setSelected((p) => p.filter((x) => x !== id));
-    } catch {
-      alert("Failed to delete teacher");
+    } catch (error) {
+      alert(error.message || "Failed to delete teacher");
     }
   };
 

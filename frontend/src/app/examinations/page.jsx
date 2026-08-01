@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import {
+  Award,
   CalendarDays,
   CreditCard,
   Eye,
@@ -39,8 +40,9 @@ export default function ExaminationsPage() {
     schedule: [],
     question_papers: [],
     admit_card_batches: [],
+    classes: [],
   });
-  const [tab, setTab] = useState("schedule");
+  const [tab, setTab] = useState("exams");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [scheduleModal, setScheduleModal] = useState(null);
@@ -56,6 +58,7 @@ export default function ExaminationsPage() {
   const [toast, setToast] = useState(null);
   const [confirmation, setConfirmation] = useState(null);
   const [actionBusy, setActionBusy] = useState(false);
+  const [examModal, setExamModal] = useState(false);
 
   const notify = useCallback((message, type = "success") => {
     setToast({ message, type });
@@ -73,7 +76,14 @@ export default function ExaminationsPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      setData(await apiFetch("/examinations"));
+      const [examinationData, classes] = await Promise.all([
+        apiFetch("/examinations"),
+        apiFetch("/admin/classes"),
+      ]);
+      setData({
+        ...examinationData,
+        classes: Array.isArray(classes) ? classes : [],
+      });
     } catch (err) {
       setError(err.message);
     } finally {
@@ -234,6 +244,7 @@ export default function ExaminationsPage() {
           )}
           <div className="flex overflow-x-auto border-b border-orange-200">
             {[
+              ["exams", "Exams", Award],
               ["schedule", "Date Sheet", CalendarDays],
               ["papers", "Question Papers", FileQuestion],
               ["cards", "Admit Cards", CreditCard],
@@ -255,6 +266,23 @@ export default function ExaminationsPage() {
             <div className="flex justify-center py-24">
               <Loader2 className="animate-spin text-orange-600" />
             </div>
+          ) : tab === "exams" ? (
+            <ExamManagement
+              exams={data.exams}
+              onCreate={() => setExamModal(true)}
+              onRelease={async (exam) => {
+                try {
+                  const result = await apiFetch(
+                    `/admin/results/exams/${exam.id}/release`,
+                    { method: "POST" },
+                  );
+                  notify(result.message || "Exam released to class teacher.");
+                  load();
+                } catch (err) {
+                  notify(err.message, "error");
+                }
+              }}
+            />
           ) : tab === "schedule" ? (
             <>
               <div className="flex justify-end">
@@ -544,6 +572,17 @@ export default function ExaminationsPage() {
           onSave={saveSchedule}
         />
       )}
+      {examModal && (
+        <ExamCycleModal
+          classes={data.classes}
+          onClose={() => setExamModal(false)}
+          onSaved={() => {
+            setExamModal(false);
+            notify("Exam cycle created successfully.");
+            load();
+          }}
+        />
+      )}
       {!!cards.length && (
         <CardsModal cards={cards} onClose={() => setCards([])} />
       )}
@@ -555,6 +594,120 @@ export default function ExaminationsPage() {
         onCancel={() => closeConfirmation(false)}
         onConfirm={() => closeConfirmation(true)}
       />
+    </div>
+  );
+}
+
+function ExamManagement({ exams, onCreate, onRelease }) {
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="font-bold text-gray-900">Exam Management</h2>
+          <p className="text-xs text-gray-500">
+            Create the exam first, publish its date sheet, then release it to class teachers.
+          </p>
+        </div>
+        <button onClick={onCreate} className="flex items-center gap-2 rounded-lg bg-orange-600 px-4 py-2.5 text-sm font-semibold text-white">
+          <Plus size={15} /> Create Exam
+        </button>
+      </div>
+      <div className="overflow-x-auto rounded-xl border border-orange-200 bg-white">
+        <table className="w-full min-w-[850px] text-sm">
+          <thead className="bg-orange-50 text-xs text-gray-600">
+            <tr>
+              {["Exam", "Academic Year", "Class", "Dates", "Status", "Action"].map((heading) => (
+                <th key={heading} className="px-4 py-3 text-left">{heading}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-orange-100">
+            {exams.map((exam) => (
+              <tr key={exam.id}>
+                <td className="px-4 py-3 font-semibold">{exam.name}</td>
+                <td className="px-4 py-3">{exam.academic_year}</td>
+                <td className="px-4 py-3">{exam.class}{exam.section ? `-${exam.section}` : ""}</td>
+                <td className="px-4 py-3">{exam.start_date?.slice(0, 10) || "-"} to {exam.end_date?.slice(0, 10) || "-"}</td>
+                <td className="px-4 py-3 capitalize">{exam.status?.replaceAll("_", " ")}</td>
+                <td className="px-4 py-3">
+                  {exam.status === "draft" ? (
+                    <button onClick={() => onRelease(exam)} className="flex items-center gap-1 rounded-lg bg-orange-50 px-3 py-1.5 text-xs font-semibold text-orange-700">
+                      <Send size={12} /> Release
+                    </button>
+                  ) : <span className="text-xs text-gray-400">Managed by workflow</span>}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {!exams.length && <p className="py-16 text-center text-sm text-gray-500">No exams created yet.</p>}
+      </div>
+    </div>
+  );
+}
+
+function ExamCycleModal({ classes, onClose, onSaved }) {
+  const now = new Date();
+  const startYear = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
+  const [form, setForm] = useState({
+    name: "", exam_type: "Annual", academic_year: `${startYear}-${String(startYear + 1).slice(-2)}`,
+    start_date: "", end_date: "", default_total_marks: 100, class_ids: [],
+  });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const toggleClass = (id) => setForm((current) => ({
+    ...current,
+    class_ids: current.class_ids.includes(id)
+      ? current.class_ids.filter((item) => item !== id)
+      : [...current.class_ids, id],
+  }));
+  const submit = async () => {
+    if (!form.name.trim() || !form.start_date || !form.end_date || !form.class_ids.length) {
+      return setError("Name, dates and at least one class-section are required.");
+    }
+    setSaving(true);
+    setError("");
+    try {
+      await apiFetch("/admin/results/exams", {
+        method: "POST",
+        body: JSON.stringify(form),
+      });
+      onSaved();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white shadow-2xl">
+        <div className="flex items-center justify-between border-b p-5">
+          <div><h2 className="font-bold">Create Exam Cycle</h2><p className="text-xs text-gray-500">One assigned exam is created per selected class-section.</p></div>
+          <button onClick={onClose}><X size={18} /></button>
+        </div>
+        <div className="grid gap-3 p-5 sm:grid-cols-2">
+          <input value={form.name} onChange={(e) => setForm({...form,name:e.target.value})} placeholder="Exam name" className="rounded-lg border border-orange-200 px-3 py-2.5 text-sm" />
+          <select value={form.exam_type} onChange={(e) => setForm({...form,exam_type:e.target.value})} className="rounded-lg border border-orange-200 px-3 py-2.5 text-sm">
+            {["Unit Test","Monthly","Quarterly","Half Yearly","Annual"].map((item) => <option key={item}>{item}</option>)}
+          </select>
+          <input value={form.academic_year} onChange={(e) => setForm({...form,academic_year:e.target.value})} placeholder="Academic year" className="rounded-lg border border-orange-200 px-3 py-2.5 text-sm" />
+          <input type="number" min="1" value={form.default_total_marks} onChange={(e) => setForm({...form,default_total_marks:Number(e.target.value)})} className="rounded-lg border border-orange-200 px-3 py-2.5 text-sm" />
+          <input type="date" value={form.start_date} onChange={(e) => setForm({...form,start_date:e.target.value})} className="rounded-lg border border-orange-200 px-3 py-2.5 text-sm" />
+          <input type="date" min={form.start_date || undefined} value={form.end_date} onChange={(e) => setForm({...form,end_date:e.target.value})} className="rounded-lg border border-orange-200 px-3 py-2.5 text-sm" />
+          <div className="sm:col-span-2 grid max-h-56 gap-2 overflow-y-auto rounded-xl border border-orange-200 p-3 sm:grid-cols-2">
+            {classes.map((item) => {
+              const id = Number(item.dbId || item.id);
+              return <label key={id} className="flex cursor-pointer gap-2 rounded-lg border border-orange-100 p-3 text-sm">
+                <input type="checkbox" checked={form.class_ids.includes(id)} onChange={() => toggleClass(id)} />
+                <span><strong>{item.grade || item.class_name}-{item.section}</strong><span className="block text-xs text-gray-500">{item.classTeacher || item.teacher_name || "Class teacher not assigned"}</span></span>
+              </label>;
+            })}
+          </div>
+          {error && <p className="sm:col-span-2 text-sm text-red-600">{error}</p>}
+        </div>
+        <div className="flex justify-end gap-2 border-t p-4"><button onClick={onClose} className="rounded-lg border px-4 py-2">Cancel</button><button onClick={submit} disabled={saving} className="rounded-lg bg-orange-600 px-4 py-2 font-semibold text-white disabled:opacity-50">{saving ? "Creating..." : "Create Exam"}</button></div>
+      </div>
     </div>
   );
 }

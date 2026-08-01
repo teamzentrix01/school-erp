@@ -1222,6 +1222,63 @@ const getMarksheet = async (req, res) => {
   }
 };
 
+const getAnnualConsolidatedResult = async (req, res) => {
+  const { academic_year: academicYear, class: className, section } = req.query;
+  if (!academicYear) {
+    return res.status(400).json({ message: "Academic year is required" });
+  }
+  try {
+    const params = [academicYear];
+    let filters = "e.academic_year=$1 AND e.status IN ('published','result_published')";
+    if (className) {
+      params.push(className);
+      filters += ` AND LOWER(TRIM(e.class))=LOWER(TRIM($${params.length}))`;
+    }
+    if (section) {
+      params.push(section);
+      filters += ` AND LOWER(TRIM(COALESCE(e.section,s.section)))=LOWER(TRIM($${params.length}))`;
+    }
+    const result = await pool.query(
+      `SELECT s.id AS student_id,u.name AS student_name,s.roll_number,
+              s.class,s.section,
+              COUNT(DISTINCT e.id)::int AS exams_count,
+              COUNT(r.id)::int AS subject_records,
+              COALESCE(SUM(r.marks_obtained),0)::numeric AS obtained,
+              COALESCE(SUM(r.total_marks),0)::numeric AS total,
+              CASE WHEN COALESCE(SUM(r.total_marks),0)>0
+                THEN ROUND(SUM(r.marks_obtained)*100.0/SUM(r.total_marks),2)
+                ELSE 0 END AS percentage,
+              JSON_AGG(JSON_BUILD_OBJECT(
+                'exam_id',e.id,'exam_name',e.name,'exam_type',e.exam_type,
+                'subject',r.subject,'marks_obtained',r.marks_obtained,
+                'total_marks',r.total_marks,'grade',r.grade
+              ) ORDER BY e.start_date,e.id,r.subject) AS records
+         FROM results r
+         JOIN exams e ON e.id=r.exam_id
+         JOIN students s ON s.id=r.student_id
+         JOIN users u ON u.id=s.user_id
+        WHERE ${filters}
+        GROUP BY s.id,u.name
+        ORDER BY s.class,s.section,
+          NULLIF(REGEXP_REPLACE(COALESCE(s.roll_number,''),'\\D','','g'),'')::int NULLS LAST,
+          u.name`,
+      params,
+    );
+    const rows = result.rows.map((row) => ({
+      ...row,
+      obtained: Number(row.obtained),
+      total: Number(row.total),
+      percentage: Number(row.percentage),
+      grade: gradeFor(Number(row.obtained), Number(row.total)),
+      status: Number(row.percentage) >= 33 ? "Pass" : "Fail",
+    }));
+    res.json({ academic_year: academicYear, rows });
+  } catch (error) {
+    console.error("getAnnualConsolidatedResult:", error);
+    res.status(500).json({ message: "Failed to generate annual consolidated result" });
+  }
+};
+
 const getUploads = async (_req, res) => {
   try {
     const result = await pool.query(
@@ -1383,6 +1440,7 @@ module.exports = {
   getFeeClearance,
   updateFeeClearanceOverride,
   getMarksheet,
+  getAnnualConsolidatedResult,
   getUploads,
   uploadResultFile,
 };

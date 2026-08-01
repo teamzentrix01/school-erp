@@ -1,4 +1,6 @@
 const bcrypt = require("bcryptjs");
+const fs = require("fs");
+const path = require("path");
 const pool = require("../config/db");
 
 const currentAcademicYear = () => {
@@ -51,8 +53,17 @@ const listUsers = async (_req, res) => {
   try {
     const result = await pool.query(
       `SELECT u.id,u.name,u.email,u.is_active,u.created_at,
-              ap.employee_code,ap.phone
+              ap.employee_code,ap.phone,
+              COALESCE(d.documents,'[]'::json) AS documents
        FROM users u LEFT JOIN accounts_profiles ap ON ap.user_id=u.id
+       LEFT JOIN LATERAL (
+         SELECT JSON_AGG(JSON_BUILD_OBJECT(
+           'id',ad.id,'document_type',ad.document_type,
+           'original_name',ad.original_name,'file_url',ad.file_url,
+           'mime_type',ad.mime_type,'created_at',ad.created_at
+         ) ORDER BY ad.created_at DESC) AS documents
+         FROM accounts_documents ad WHERE ad.user_id=u.id
+       ) d ON TRUE
        WHERE u.role='accounts' ORDER BY u.created_at DESC`,
     );
     res.json(result.rows);
@@ -157,4 +168,75 @@ const updateUser = async (req, res) => {
   }
 };
 
-module.exports = { getDashboard, listUsers, createUser, updateUser };
+const deleteUser = async (req, res) => {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const user = await client.query(
+      `SELECT id FROM users WHERE id=$1 AND role='accounts' FOR UPDATE`,
+      [req.params.id],
+    );
+    if (!user.rows.length) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ message: "Accounts user not found" });
+    }
+    await client.query("DELETE FROM users WHERE id=$1", [req.params.id]);
+    await client.query("COMMIT");
+    res.json({ message: "Accounts user deleted successfully" });
+  } catch (error) {
+    await client.query("ROLLBACK");
+    console.error("delete accounts user:", error);
+    res.status(500).json({ message: "Failed to delete accounts user" });
+  } finally {
+    client.release();
+  }
+};
+
+const uploadDocument = async (req, res) => {
+  if (!req.file) return res.status(400).json({ message: "Document file is required" });
+  try {
+    const user = await pool.query(
+      "SELECT id FROM users WHERE id=$1 AND role='accounts'",
+      [req.params.id],
+    );
+    if (!user.rows.length) {
+      fs.unlink(req.file.path, () => {});
+      return res.status(404).json({ message: "Accounts user not found" });
+    }
+    const result = await pool.query(
+      `INSERT INTO accounts_documents
+         (user_id,document_type,original_name,file_url,mime_type,uploaded_by)
+       VALUES($1,$2,$3,$4,$5,$6) RETURNING *`,
+      [req.params.id, req.body.document_type?.trim() || "Identity Document",
+       req.file.originalname, `/uploads/accounts/${req.file.filename}`,
+       req.file.mimetype, req.user.id],
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    fs.unlink(req.file.path, () => {});
+    console.error("upload accounts document:", error);
+    res.status(500).json({ message: "Failed to upload document" });
+  }
+};
+
+const deleteDocument = async (req, res) => {
+  try {
+    const result = await pool.query(
+      "DELETE FROM accounts_documents WHERE id=$1 RETURNING file_url",
+      [req.params.documentId],
+    );
+    if (!result.rows.length) return res.status(404).json({ message: "Document not found" });
+    const filePath = path.resolve(__dirname, "..", result.rows[0].file_url.replace(/^\/+/, ""));
+    const root = path.resolve(__dirname, "../uploads/accounts");
+    if (filePath.startsWith(root)) fs.unlink(filePath, () => {});
+    res.json({ message: "Document deleted" });
+  } catch (error) {
+    console.error("delete accounts document:", error);
+    res.status(500).json({ message: "Failed to delete document" });
+  }
+};
+
+module.exports = {
+  getDashboard, listUsers, createUser, updateUser, deleteUser,
+  uploadDocument, deleteDocument,
+};

@@ -439,28 +439,42 @@ const recordCashPayment = async (req, res) => {
 const getStudentFeesList = async (req, res) => {
   try {
     const { class: cls, section, academic_year, limit = 200 } = req.query;
+    const ay = academic_year || currentAcademicYear();
+    const params = [ay];
     let query = `
-      SELECT sf.*,
+      SELECT sf.id, s.id AS student_id,
+             COALESCE(sf.class,s.class) AS class,
+             $1::varchar AS academic_year,
+             COALESCE(sf.tuition_fee,0)::numeric AS tuition_fee,
+             COALESCE(sf.library_fee,0)::numeric AS library_fee,
+             COALESCE(sf.other_fee,0)::numeric AS other_fee,
+             COALESCE(sf.transport_fee,0)::numeric AS transport_fee,
+             COALESCE(sf.hostel_fee,0)::numeric AS hostel_fee,
+             COALESCE(sf.mess_fee,0)::numeric AS mess_fee,
+             COALESCE(sf.total_fees,0)::numeric AS total_fees,
+             COALESCE(sf.paid_amount,0)::numeric AS paid_amount,
+             CASE WHEN sf.id IS NULL THEN 'Not Configured' ELSE sf.status END AS status,
+             sf.due_date, (sf.id IS NOT NULL) AS fee_configured,
              u.name, u.email,
              s.roll_number AS roll_no, s.roll_number,
              s.section, s.class AS student_class
-      FROM student_fees sf
-      JOIN students s ON sf.student_id = s.id
+      FROM students s
       JOIN users u ON s.user_id = u.id
-      WHERE 1=1`;
-    const params = [];
+      LEFT JOIN student_fees sf
+        ON sf.student_id=s.id AND sf.academic_year=$1
+      WHERE COALESCE(s.is_active,TRUE)=TRUE`;
 
     if (cls) {
       params.push(cls);
-      query += ` AND (sf.class = $${params.length} OR s.class = $${params.length})`;
+      query += ` AND LOWER(TRIM(s.class)) IN (
+        LOWER(TRIM($${params.length})),
+        LOWER(TRIM(REGEXP_REPLACE($${params.length}, '^Class\\s+', '', 'i'))),
+        LOWER(TRIM(CONCAT('Class ', $${params.length})))
+      )`;
     }
     if (section) {
       params.push(section);
-      query += ` AND s.section = $${params.length}`;
-    }
-    if (academic_year) {
-      params.push(academic_year);
-      query += ` AND sf.academic_year = $${params.length}`;
+      query += ` AND LOWER(TRIM(s.section)) = LOWER(TRIM($${params.length}))`;
     }
     if (req.user.role === "teacher") {
       const teacher = await pool.query(

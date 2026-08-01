@@ -669,6 +669,7 @@ export default function TimetablePage() {
   async function handleSavePeriod(formData) {
     const conflict = timetable.find((entry) =>
       entry.id !== formData.id &&
+      Number(entry.class_id) === Number(formData.class_id) &&
       entry.day_of_week === formData.day_of_week &&
       Number(entry.period_number) === Number(formData.period_number)
     );

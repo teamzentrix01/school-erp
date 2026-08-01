@@ -45,8 +45,8 @@ const NAV_SECTIONS = [
   {
     heading: "Academic",
     items: [
-      { icon: BarChart3, label: "Results", href: "/results" },
       { icon: CalendarDays, label: "Examinations", href: "/examinations" },
+      { icon: BarChart3, label: "Results", href: "/results" },
       { icon: FileText, label: "Documents", href: "/documents" },
       { icon: ClipboardList, label: "Notices", href: "/admin/notices" },
       { icon: CalendarCheck, label: "Holidays", href: "/holidays" },

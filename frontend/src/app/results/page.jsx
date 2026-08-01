@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Sidebar from "@/components/Sidebar";
 import {
   ConfirmDialog,
-  ToastMessage,
 } from "@/components/ActionFeedback";
 import {
   Award,
@@ -1396,7 +1395,7 @@ function MarksheetTab({ exams }) {
   );
 }
 
-function UploadsTab({ exams }) {
+function UploadsTab({ exams, onEditMarks }) {
   const [uploads, setUploads] = useState([]);
   const [examId, setExamId] = useState("");
   const [file, setFile] = useState(null);
@@ -1487,7 +1486,7 @@ function UploadsTab({ exams }) {
         <table className="w-full text-sm min-w-[650px]">
           <thead className="bg-gray-50 text-xs text-gray-500">
             <tr>
-              {["File", "Exam", "Type", "Rows Imported", "Uploaded"].map(
+              {["File", "Exam", "Type", "Rows Imported", "Uploaded", "Action"].map(
                 (item) => (
                   <th key={item} className="text-left px-4 py-3">
                     {item}
@@ -1515,6 +1514,16 @@ function UploadsTab({ exams }) {
                 <td className="px-4 py-3 text-gray-500">
                   {new Date(item.created_at).toLocaleString("en-IN")}
                 </td>
+                <td className="px-4 py-3">
+                  {item.exam_id && item.upload_kind === "marks_csv" ? (
+                    <button
+                      onClick={() => onEditMarks(item.exam_id)}
+                      className="flex items-center gap-1 rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700"
+                    >
+                      <Pencil size={13} /> Edit Imported Marks
+                    </button>
+                  ) : "-"}
+                </td>
               </tr>
             ))}
           </tbody>
@@ -1529,32 +1538,70 @@ function UploadsTab({ exams }) {
   );
 }
 
+function AnnualResultTab({ exams }) {
+  const years = [...new Set(exams.map((exam) => exam.academic_year).filter(Boolean))];
+  const classes = [...new Set(exams.map((exam) => exam.class).filter(Boolean))];
+  const [year, setYear] = useState(years[0] || "");
+  const [className, setClassName] = useState("");
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState("");
+  const generate = async () => {
+    if (!year) return setMessage("Select an academic year.");
+    setLoading(true);
+    setMessage("");
+    try {
+      const query = new URLSearchParams({ academic_year: year });
+      if (className) query.set("class", className);
+      const result = await apiFetch(`/annual-consolidated?${query}`);
+      setRows(result.rows || []);
+      if (!result.rows?.length) setMessage("No published results found for this selection.");
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+  return (
+    <div className="space-y-4">
+      <div className="print:hidden flex flex-col gap-3 rounded-xl border border-gray-100 bg-white p-5 sm:flex-row">
+        <select value={year} onChange={(e) => setYear(e.target.value)} className="rounded-lg border px-3 py-2.5 text-sm">
+          <option value="">Academic year</option>{years.map((item) => <option key={item}>{item}</option>)}
+        </select>
+        <select value={className} onChange={(e) => setClassName(e.target.value)} className="rounded-lg border px-3 py-2.5 text-sm">
+          <option value="">All classes</option>{classes.map((item) => <option key={item}>{item}</option>)}
+        </select>
+        <button onClick={generate} disabled={loading} className="rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50">
+          {loading ? "Generating..." : "Generate Annual Result"}
+        </button>
+        {!!rows.length && <button onClick={() => window.print()} className="flex items-center justify-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-semibold"><Printer size={14} /> Print / PDF</button>}
+      </div>
+      {message && <p className="rounded-lg bg-blue-50 p-3 text-sm text-blue-700">{message}</p>}
+      {!!rows.length && (
+        <div className="overflow-x-auto rounded-xl border bg-white">
+          <div className="border-b p-5 text-center"><h2 className="text-xl font-bold">Annual Consolidated Result</h2><p className="text-sm text-gray-500">Academic Year {year}{className ? ` | Class ${className}` : ""}</p></div>
+          <table className="w-full min-w-[850px] text-sm"><thead className="bg-gray-50"><tr>{["Roll No.","Student","Class","Exams","Marks","Percentage","Grade","Result"].map((h)=><th key={h} className="px-4 py-3 text-left">{h}</th>)}</tr></thead>
+            <tbody className="divide-y">{rows.map((row)=><tr key={row.student_id}><td className="px-4 py-3">{row.roll_number}</td><td className="px-4 py-3 font-semibold">{row.student_name}</td><td className="px-4 py-3">{row.class}-{row.section}</td><td className="px-4 py-3">{row.exams_count}</td><td className="px-4 py-3">{row.obtained}/{row.total}</td><td className="px-4 py-3">{row.percentage}%</td><td className="px-4 py-3">{row.grade}</td><td className={`px-4 py-3 font-semibold ${row.status === "Pass" ? "text-green-700" : "text-red-600"}`}>{row.status}</td></tr>)}</tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function ResultsPage() {
-  const [tab, setTab] = useState("exams");
+  const [tab, setTab] = useState("marks");
   const [exams, setExams] = useState([]);
-  const [classes, setClasses] = useState([]);
   const [selectedExam, setSelectedExam] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [toast, setToast] = useState(null);
-
-  const notify = useCallback((message, type = "success") => {
-    setToast({ message, type });
-    window.setTimeout(() => setToast(null), 3500);
-  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
-      const [examData, classResponse] = await Promise.all([
-        apiFetch("/exams"),
-        fetch(`${API_BASE}/api/admin/classes`, {
-          headers: { Authorization: `Bearer ${getToken()}` },
-        }).then((response) => response.json()),
-      ]);
+      const examData = await apiFetch("/exams");
       setExams(examData || []);
-      setClasses(Array.isArray(classResponse) ? classResponse : []);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -1574,11 +1621,11 @@ export default function ResultsPage() {
     (exam) => exam.status === "approved",
   ).length;
   const tabs = [
-    ["exams", "Exams", Award],
     ["marks", "Marks Entry", BookOpen],
     ["reviews", "Teacher Reviews", ClipboardCheck],
     ["clearance", "Fee Clearance", ShieldCheck],
     ["marksheet", "Marksheet", FileText],
+    ["annual", "Annual Consolidated", Award],
     ["uploads", "Uploads", FileSpreadsheet],
   ];
 
@@ -1644,18 +1691,6 @@ export default function ResultsPage() {
             </div>
           ) : (
             <>
-              {tab === "exams" && (
-                <ExamsTab
-                  exams={exams}
-                  classes={classes}
-                  load={load}
-                  notify={notify}
-                  selectExam={(exam) => {
-                    setSelectedExam(exam);
-                    setTab("marks");
-                  }}
-                />
-              )}
               {tab === "marks" && (
                 <MarksTab
                   exams={exams}
@@ -1666,12 +1701,15 @@ export default function ResultsPage() {
               {tab === "reviews" && <ReviewsTab />}
               {tab === "clearance" && <FeeClearanceTab exams={exams} />}
               {tab === "marksheet" && <MarksheetTab exams={exams} />}
-              {tab === "uploads" && <UploadsTab exams={exams} />}
+              {tab === "annual" && <AnnualResultTab exams={exams} />}
+              {tab === "uploads" && <UploadsTab exams={exams} onEditMarks={(examId) => {
+                setSelectedExam(exams.find((exam) => Number(exam.id) === Number(examId)) || null);
+                setTab("marks");
+              }} />}
             </>
           )}
         </div>
       </main>
-      <ToastMessage toast={toast} onClose={() => setToast(null)} />
     </div>
   );
 }

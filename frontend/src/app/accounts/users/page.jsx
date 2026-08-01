@@ -1,9 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Loader2, Pencil, Plus, UserCheck, X } from "lucide-react";
+import { Eye, FileText, Loader2, Pencil, Plus, Trash2, Upload, UserCheck, X } from "lucide-react";
 import Sidebar from "@/components/Sidebar";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, getMediaUrl } from "@/lib/api";
 
 const empty = {
   name: "",
@@ -30,13 +30,42 @@ export default function AccountsUsersPage() {
     return () => clearTimeout(timer);
   }, [load]);
 
-  const save = async (form) => {
-    await apiFetch(`/accounts/users${modal?.id ? `/${modal.id}` : ""}`, {
+  const save = async (form, documentFile, documentType) => {
+    const saved = await apiFetch(`/accounts/users${modal?.id ? `/${modal.id}` : ""}`, {
       method: modal?.id ? "PUT" : "POST",
       body: JSON.stringify(form),
     });
+    const userId = modal?.id || saved?.id;
+    if (documentFile && userId) {
+      const body = new FormData();
+      body.append("document", documentFile);
+      body.append("document_type", documentType || "Identity Document");
+      await apiFetch(`/accounts/users/${userId}/documents`, {
+        method: "POST",
+        body,
+      });
+    }
     setModal(null);
     load();
+  };
+
+  const removeUser = async (user) => {
+    if (!window.confirm(`Delete accounts user ${user.name}?`)) return;
+    try {
+      await apiFetch(`/accounts/users/${user.id}`, { method: "DELETE" });
+      await load();
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const removeDocument = async (userId, documentId) => {
+    await apiFetch(`/accounts/users/${userId}/documents/${documentId}`, {
+      method: "DELETE",
+    });
+    const refreshed = await apiFetch("/accounts/users");
+    setUsers(refreshed);
+    setModal(refreshed.find((user) => Number(user.id) === Number(userId)) || null);
   };
 
   return (
@@ -64,7 +93,7 @@ export default function AccountsUsersPage() {
           <table className="w-full min-w-[700px] text-sm">
             <thead className="bg-gray-50">
               <tr>
-                {["Employee", "Email", "Phone", "Status", "Action"].map((h) => (
+                {["Employee", "Email", "Phone", "Documents", "Status", "Action"].map((h) => (
                   <th key={h} className="px-4 py-3 text-left">
                     {h}
                   </th>
@@ -83,6 +112,11 @@ export default function AccountsUsersPage() {
                   <td className="px-4 py-3">{user.email}</td>
                   <td className="px-4 py-3">{user.phone || "-"}</td>
                   <td className="px-4 py-3">
+                    <span className="inline-flex items-center gap-1 text-gray-600">
+                      <FileText size={14} /> {user.documents?.length || 0}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3">
                     <span
                       className={
                         user.is_active ? "text-emerald-600" : "text-red-500"
@@ -97,6 +131,13 @@ export default function AccountsUsersPage() {
                       className="p-2 text-blue-600"
                     >
                       <Pencil size={15} />
+                    </button>
+                    <button
+                      onClick={() => removeUser(user)}
+                      className="p-2 text-red-500"
+                      title="Delete accounts user"
+                    >
+                      <Trash2 size={15} />
                     </button>
                   </td>
                 </tr>
@@ -116,21 +157,24 @@ export default function AccountsUsersPage() {
           editing={Boolean(modal.id)}
           onClose={() => setModal(null)}
           onSave={save}
+          onDeleteDocument={removeDocument}
         />
       )}
     </div>
   );
 }
 
-function UserModal({ initial, editing, onClose, onSave }) {
+function UserModal({ initial, editing, onClose, onSave, onDeleteDocument }) {
   const [form, setForm] = useState({ ...empty, ...initial, password: "" });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [documentFile, setDocumentFile] = useState(null);
+  const [documentType, setDocumentType] = useState("Identity Document");
   const submit = async () => {
     setSaving(true);
     setError("");
     try {
-      await onSave(form);
+      await onSave(form, documentFile, documentType);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -185,6 +229,39 @@ function UserModal({ initial, editing, onClose, onSave }) {
               Active login
             </label>
           )}
+          <div className="sm:col-span-2 rounded-xl border border-gray-200 p-4">
+            <p className="text-sm font-semibold text-gray-800">ID / Documents</p>
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+              <input
+                value={documentType}
+                onChange={(e) => setDocumentType(e.target.value)}
+                placeholder="Document type"
+                className="rounded-lg border px-3 py-2 text-sm"
+              />
+              <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-dashed px-3 py-2 text-sm text-gray-500">
+                <Upload size={14} /> {documentFile?.name || "Choose PDF or image"}
+                <input
+                  type="file"
+                  accept=".pdf,.jpg,.jpeg,.png,.webp"
+                  className="hidden"
+                  onChange={(e) => setDocumentFile(e.target.files?.[0] || null)}
+                />
+              </label>
+            </div>
+            {!!initial.documents?.length && (
+              <div className="mt-3 space-y-2">
+                {initial.documents.map((document) => (
+                  <div key={document.id} className="flex items-center justify-between rounded-lg bg-gray-50 px-3 py-2 text-xs">
+                    <span>{document.document_type}: {document.original_name}</span>
+                    <span className="flex gap-1">
+                      <a href={getMediaUrl(document.file_url)} target="_blank" rel="noreferrer" className="p-1 text-blue-600"><Eye size={13} /></a>
+                      <button onClick={() => onDeleteDocument(initial.id, document.id)} className="p-1 text-red-500"><Trash2 size={13} /></button>
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
           {error && (
             <p className="sm:col-span-2 text-sm text-red-600">{error}</p>
           )}

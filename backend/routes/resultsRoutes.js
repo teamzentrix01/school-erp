@@ -18,6 +18,7 @@ const {
   getFeeClearance,
   updateFeeClearanceOverride,
   getMarksheet,
+  getAnnualConsolidatedResult,
   getUploads,
   uploadResultFile,
 } = require("../controllers/resultsController");
@@ -73,6 +74,7 @@ router.put(
   updateFeeClearanceOverride,
 );
 router.get("/marksheet/:examId/:studentId", getMarksheet);
+router.get("/annual-consolidated", getAnnualConsolidatedResult);
 router.get("/uploads", getUploads);
 router.post("/uploads", upload.single("file"), requestValidation, uploadResultFile);
 

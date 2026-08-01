@@ -563,6 +563,10 @@ const deleteTeacher = async (req, res) => {
       [id],
     );
 
+    // Remove operational records that may use restrictive legacy foreign keys.
+    await client.query("DELETE FROM timetable WHERE teacher_id = $1", [id]);
+    await client.query("DELETE FROM teacher_attendance WHERE teacher_id = $1", [id]);
+
     // Delete subject assignments
     await client.query("DELETE FROM teacher_subjects WHERE teacher_id = $1", [
       id,
@@ -579,9 +583,39 @@ const deleteTeacher = async (req, res) => {
   } catch (err) {
     await client.query("ROLLBACK");
     console.error("deleteTeacher error:", err.message); // ← check your terminal for this
-    res.status(500).json({ message: err.message });
+    res.status(409).json({
+      message:
+        err.code === "23503"
+          ? "Teacher is linked to another record and could not be deleted"
+          : err.message || "Failed to delete teacher",
+    });
   } finally {
     client.release();
+  }
+};
+
+const changeTeacherPassword = async (req, res) => {
+  const password = String(req.body.password || "");
+  if (password.length < 8 || password.length > 128) {
+    return res.status(400).json({
+      message: "Password must be between 8 and 128 characters",
+    });
+  }
+  try {
+    const hashed = await bcrypt.hash(password, 10);
+    const result = await pool.query(
+      `UPDATE users SET password=$1,updated_at=NOW()
+        WHERE id=(SELECT user_id FROM teachers WHERE id=$2)
+        RETURNING id`,
+      [hashed, req.params.id],
+    );
+    if (!result.rows.length) {
+      return res.status(404).json({ message: "Teacher not found" });
+    }
+    res.json({ message: "Teacher password changed successfully" });
+  } catch (error) {
+    console.error("changeTeacherPassword:", error);
+    res.status(500).json({ message: "Failed to change teacher password" });
   }
 };
 
@@ -1037,6 +1071,7 @@ module.exports = {
   getTeacherMeta,
   createTeacher,
   deleteTeacher,
+  changeTeacherPassword,
   getProfile,
   getClasses,
   getStudents,
