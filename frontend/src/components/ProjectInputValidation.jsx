@@ -66,6 +66,14 @@ function isPhoneField(semantic) {
   );
 }
 
+function isAadhaarNumberField(semantic) {
+  return (
+    AADHAAR_PATTERN.test(semantic) &&
+    /(number|no\b)/i.test(semantic) &&
+    !/address|image|upload|document/i.test(semantic)
+  );
+}
+
 function configureInput(input) {
   if (
     !(input instanceof window.HTMLInputElement) ||
@@ -77,7 +85,7 @@ function configureInput(input) {
   const semantic = getSemanticText(input);
   const lookup = isLookupInput(input);
 
-  if (!lookup && AADHAAR_PATTERN.test(semantic)) {
+  if (!lookup && isAadhaarNumberField(semantic)) {
     input.inputMode = "numeric";
     input.maxLength = 12;
     input.pattern = "[0-9]{12}";
@@ -123,7 +131,7 @@ function sanitizeInput(input) {
   let nextValue = input.value;
   let message = "";
 
-  if (!lookup && AADHAAR_PATTERN.test(semantic)) {
+  if (!lookup && isAadhaarNumberField(semantic)) {
     nextValue = nextValue.replace(/\D/g, "").slice(0, 12);
     if (nextValue && nextValue.length !== 12) message = "Aadhaar number must be exactly 12 digits.";
   } else if (!lookup && isPhoneField(semantic)) {
