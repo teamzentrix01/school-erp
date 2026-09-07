@@ -717,7 +717,7 @@ export default function LoginPage() {
 
   return (
     <>
-      <div className="min-h-screen flex font-sans bg-orange-950">
+      <div className="min-h-screen w-full overflow-x-hidden flex font-sans bg-orange-950">
         {/* Left Panel */}
         <div
           className="hidden lg:flex lg:w-[55%] relative flex-col justify-between p-12 overflow-hidden transition-all duration-700"
@@ -791,7 +791,7 @@ export default function LoginPage() {
         </div>
 
         {/* Right Panel */}
-        <div className="flex-1 flex items-center justify-center p-6 bg-orange-50 relative overflow-hidden">
+        <div className="w-full min-w-0 flex-1 flex items-center justify-center p-4 sm:p-6 bg-orange-50 relative overflow-hidden">
           <div
             className="absolute top-0 left-0 right-0 h-1 transition-all duration-500"
             style={{
@@ -799,7 +799,7 @@ export default function LoginPage() {
             }}
           />
 
-          <div className="w-full max-w-[420px] space-y-7">
+          <div className="w-full min-w-0 max-w-[420px] space-y-7">
             {/* Mobile logo */}
             <div className="lg:hidden flex items-center gap-3 mb-2">
               <div
@@ -824,7 +824,7 @@ export default function LoginPage() {
             </div>
 
             {/* Role Switcher */}
-            <div className="bg-orange-100 rounded-2xl p-1.5 flex gap-1">
+            <div className="bg-orange-100 rounded-2xl p-1.5 grid grid-cols-4 gap-1">
               {ROLES.map((r) => {
                 const RIcon = r.icon;
                 const isActive = role === r.key;
@@ -835,7 +835,7 @@ export default function LoginPage() {
                       setRole(r.key);
                       setError("");
                     }}
-                    className={`flex-1 flex flex-col items-center gap-1 py-2.5 px-2 rounded-xl text-xs font-semibold transition-all duration-300 ${isActive ? "bg-white shadow-sm text-orange-950" : "text-orange-700/70 hover:text-orange-800"}`}
+                    className={`min-w-0 flex flex-col items-center gap-1 py-2.5 px-1 sm:px-2 rounded-xl text-[11px] sm:text-xs font-semibold transition-all duration-300 ${isActive ? "bg-white shadow-sm text-orange-950" : "text-orange-700/70 hover:text-orange-800"}`}
                   >
                     <RIcon
                       size={16}

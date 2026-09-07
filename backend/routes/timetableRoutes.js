@@ -18,6 +18,9 @@ const {
   createTimetableEvent,
   updateTimetableEvent,
   deleteTimetableEvent,
+  getArrangementOptions,
+  saveArrangement,
+  cancelArrangement,
 } = require("../controllers/timetableController");
 
 router.use(protect, authorizeRoles("admin"));
@@ -26,6 +29,9 @@ router.get   ("/timetable",     getTimetable);
 router.post  ("/timetable",     createPeriod);
 router.put   ("/timetable/:id", updatePeriod);
 router.delete("/timetable/:id", deletePeriod);
+router.get   ("/timetable/:id/arrangement", getArrangementOptions);
+router.post  ("/timetable/:id/arrangement", saveArrangement);
+router.delete("/timetable-arrangements/:id", cancelArrangement);
 router.get   ("/timetable-settings", getTimetableSettings);
 router.put   ("/timetable-settings", updateTimetableSettings);
 router.get   ("/timetable-events", getTimetableEvents);

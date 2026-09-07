@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import StudentSidebar from "@/components/StudentSidebar";
 import { apiFetch, getMediaUrl } from "@/lib/api";
+import QRCode from "qrcode";
 
 export default function StudentExaminationsPage() {
   const [data, setData] = useState({
@@ -23,6 +24,14 @@ export default function StudentExaminationsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [printCard, setPrintCard] = useState(null);
+  const [verificationQr, setVerificationQr] = useState("");
+
+  useEffect(() => {
+    if (!printCard?.card_number) return setVerificationQr("");
+    QRCode.toDataURL(`EDUERP-ADMIT-CARD:${printCard.card_number}`, { width: 140, margin: 1 })
+      .then(setVerificationQr)
+      .catch(() => setVerificationQr(""));
+  }, [printCard]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -204,35 +213,38 @@ export default function StudentExaminationsPage() {
                 Close
               </button>
             </div>
-            <div id="student-admit-card-print" className="bg-white p-7">
-              <div className="border-b pb-5 text-center">
-                <h2 className="text-2xl font-bold">EduERP College</h2>
-                <p>{printCard.exam_name} Admit Card</p>
+            <div id="student-admit-card-print" className="relative bg-white p-8 text-slate-900 border-[6px] border-double border-blue-900" style={{ fontFamily: "Arial, 'Nirmala UI', sans-serif" }}>
+              <div className="flex items-center gap-5 border-b-2 border-blue-900 pb-4">
+                <div className="h-20 w-20 shrink-0 rounded-full border-2 border-blue-900 bg-blue-50 p-2 flex items-center justify-center">
+                  {process.env.NEXT_PUBLIC_SCHOOL_LOGO_URL ? <img src={getMediaUrl(process.env.NEXT_PUBLIC_SCHOOL_LOGO_URL)} alt="School logo" className="max-h-full max-w-full object-contain" /> : <span className="text-xs font-bold text-blue-900 text-center">SCHOOL<br/>LOGO</span>}
+                </div>
+                <div className="flex-1 text-center">
+                  <p className="text-xl font-bold text-blue-950">{process.env.NEXT_PUBLIC_SCHOOL_NAME_HI || "विद्यालय का नाम"}</p>
+                  <h2 className="text-2xl font-extrabold uppercase tracking-wide text-blue-900">{process.env.NEXT_PUBLIC_SCHOOL_NAME || "EduERP School"}</h2>
+                  <p className="text-xs text-slate-600">{process.env.NEXT_PUBLIC_SCHOOL_ADDRESS || "School Address"}</p>
+                  <p className="text-[11px] font-semibold">UDISE / Affiliation No.: {process.env.NEXT_PUBLIC_SCHOOL_CODE || "-"}</p>
+                </div>
+                <div className="h-28 w-24 shrink-0 overflow-hidden border-2 border-slate-700 bg-slate-100 flex items-center justify-center">
+                  {data.student?.photo_url ? <img src={getMediaUrl(data.student.photo_url)} alt={data.student.name} className="h-full w-full object-cover" /> : <span className="text-[10px] text-slate-400">STUDENT PHOTO</span>}
+                </div>
               </div>
-              <div className="grid grid-cols-2 gap-4 py-5 text-sm">
-                <p>
-                  Student: <strong>{data.student?.name}</strong>
-                </p>
-                <p>
-                  Roll No: <strong>{data.student?.roll_number}</strong>
-                </p>
-                <p>
-                  Class:{" "}
-                  <strong>
-                    {data.student?.class}-{data.student?.section}
-                  </strong>
-                </p>
-                <p>
-                  Card No: <strong>{printCard.card_number}</strong>
-                </p>
+              <div className="my-4 rounded bg-blue-900 py-2 text-center text-white">
+                <h3 className="text-lg font-bold">प्रवेश पत्र / ADMIT CARD</h3><p className="text-sm">{printCard.exam_name} · {printCard.academic_year}</p>
               </div>
-              <table className="w-full text-sm">
-                <thead className="bg-orange-50">
+              <div className="grid grid-cols-2 border border-slate-400 text-sm [&>p]:border-b [&>p]:border-slate-300 [&>p]:p-2 odd:[&>p]:border-r">
+                <p>छात्र का नाम / Student Name: <strong>{data.student?.name}</strong></p>
+                <p>अनुक्रमांक / Roll No.: <strong>{data.student?.roll_number}</strong></p>
+                <p>प्रवेश संख्या / Admission No.: <strong>{data.student?.student_id}</strong></p>
+                <p>कक्षा / Class: <strong>{data.student?.class}-{data.student?.section}</strong></p>
+                <p>पिता/अभिभावक / Guardian: <strong>{data.student?.guardian_name || "-"}</strong></p>
+                <p>जन्म तिथि / DOB: <strong>{data.student?.date_of_birth?.slice(0,10) || "-"}</strong></p>
+                <p className="col-span-2">Admit Card No.: <strong>{printCard.card_number}</strong></p>
+              </div>
+              <h4 className="mt-5 mb-2 text-center font-bold text-blue-950">परीक्षा कार्यक्रम / EXAMINATION DATE SHEET</h4>
+              <table className="w-full border-collapse text-xs">
+                <thead className="bg-blue-900 text-white">
                   <tr>
-                    <th className="p-2 text-left">Subject</th>
-                    <th className="p-2 text-left">Date</th>
-                    <th className="p-2 text-left">Time</th>
-                    <th className="p-2 text-left">Room</th>
+                    <th className="border border-blue-950 p-2 text-left">विषय / Subject</th><th className="border border-blue-950 p-2">दिनांक / Date</th><th className="border border-blue-950 p-2">दिन / Day</th><th className="border border-blue-950 p-2">समय / Time</th><th className="border border-blue-950 p-2">कक्ष / Room</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -243,17 +255,20 @@ export default function StudentExaminationsPage() {
                     )
                     .map((item) => (
                       <tr key={item.id}>
-                        <td className="p-2">{item.subject}</td>
-                        <td className="p-2">{item.exam_date?.slice(0, 10)}</td>
-                        <td className="p-2">
+                        <td className="border border-slate-300 p-2 font-semibold">{item.subject}</td>
+                        <td className="border border-slate-300 p-2 text-center">{item.exam_date?.slice(0, 10)}</td>
+                        <td className="border border-slate-300 p-2 text-center">{item.exam_date ? new Date(`${item.exam_date.slice(0,10)}T00:00:00`).toLocaleDateString("en-IN",{weekday:"short"}) : "-"}</td>
+                        <td className="border border-slate-300 p-2 text-center">
                           {item.start_time?.slice(0, 5)}-
                           {item.end_time?.slice(0, 5)}
                         </td>
-                        <td className="p-2">{item.room || "-"}</td>
+                        <td className="border border-slate-300 p-2 text-center">{item.room || "-"}</td>
                       </tr>
                     ))}
                 </tbody>
               </table>
+              <div className="mt-5 rounded border border-amber-400 bg-amber-50 p-3 text-[11px] leading-5"><strong>महत्वपूर्ण निर्देश / IMPORTANT INSTRUCTIONS</strong><br/>1. परीक्षा केंद्र पर निर्धारित समय से 30 मिनट पहले उपस्थित हों। / Report 30 minutes before the examination.<br/>2. प्रवेश पत्र और विद्यालय पहचान पत्र साथ लाना अनिवार्य है। / Carry this admit card and school ID.<br/>3. इलेक्ट्रॉनिक उपकरण परीक्षा कक्ष में वर्जित हैं। / Electronic devices are prohibited.</div>
+              <div className="mt-8 grid grid-cols-4 items-end text-center text-xs font-semibold"><p>छात्र हस्ताक्षर<br/>Student Signature</p><p>कक्षा अध्यापक<br/>Class Teacher</p><p>प्रधानाचार्य<br/>Principal</p><div>{verificationQr&&<img src={verificationQr} alt="Admit card verification QR" className="mx-auto h-20 w-20"/>}<p>Verification QR</p></div></div>
             </div>
           </div>
         </div>

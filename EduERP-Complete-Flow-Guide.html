@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="hi">
+<head>
+<meta charset="utf-8" />
+<title>EduERP Complete Flow Guide</title>
+<style>
+  @page { size: A4; margin: 16mm; }
+  body { font-family: Arial, "Noto Sans Devanagari", sans-serif; color: #172033; font-size: 10.5pt; line-height: 1.42; }
+  h1 { color: #1556b0; font-size: 23pt; margin: 0 0 3px; }
+  h2 { color: #1556b0; font-size: 14pt; margin: 18px 0 7px; border-bottom: 1px solid #cfe0fb; padding-bottom: 4px; }
+  h3 { color: #243b65; font-size: 11.5pt; margin: 11px 0 3px; }
+  .sub { color: #5b6980; margin: 0 0 14px; }
+  .note { background: #eef6ff; border-left: 4px solid #2d78d4; padding: 9px 11px; margin: 9px 0; }
+  .warn { background: #fff6e7; border-left: 4px solid #dd901b; padding: 9px 11px; margin: 9px 0; }
+  ol, ul { margin: 5px 0 9px; padding-left: 21px; }
+  li { margin: 3px 0; }
+  table { width: 100%; border-collapse: collapse; margin: 7px 0 12px; }
+  th { background: #1d5fb8; color: white; text-align: left; }
+  th, td { border: 1px solid #cbd7e8; padding: 6px; vertical-align: top; }
+  tr:nth-child(even) { background: #f7faff; }
+  .flow { background: #f4f8fd; padding: 10px; border-radius: 5px; font-weight: bold; color: #183c75; }
+  .page { page-break-before: always; }
+</style>
+</head>
+<body>
+  <h1>EduERP: Complete System Flow</h1>
+  <p class="sub">Admin, Teacher, Student aur Accountant ke liye practical operating guide</p>
+  <div class="note"><b>Short answer:</b> Sabse pehle <b>Admin login</b> hota hai. Uske baad <b>Teachers</b> aur <b>Classes/Sections</b> banaye jaate hain. Teacher ko class se assign karke phir <b>Students</b> create/admit kiye jaate hain. Student ke baad fees, timetable, attendance, examinations aur baaki services configure hoti hain.</div>
+
+  <h2>1. Initial Setup Order — System shuru kaise karein</h2>
+  <div class="flow">Admin Login → Teachers create → Classes/Sections create + Teacher assign → Students create → Fees setup → Timetable → Academic/Service modules → Daily operations</div>
+  <ol>
+    <li><b>Admin login:</b> Admin ke paas pura configuration aur master-data control hota hai.</li>
+    <li><b>Teachers create karein:</b> Name, email, password, phone, profile details aur subject/class-related information add karein. Teacher ko baad mein class assign hoga.</li>
+    <li><b>Classes create karein:</b> Jaise Class 10, Section A. Is step mein class teacher select/assign karein. Ek hi class/section ko duplicate na banayein.</li>
+    <li><b>Students add karein:</b> Student ka name, login email/password, roll number, class, section, guardian contact, Aadhaar number/image aur address add karein. Address mein ab letters bhi enter honge.</li>
+    <li><b>Fee structure aur student fees:</b> Fees screen mein class/student ke dues, concessions, payments aur receipts manage karein.</li>
+    <li><b>Timetable:</b> Class, teacher, subject, day aur period-wise timetable set karein. Teacher/student dashboards isi mapping se timetable dikhate hain.</li>
+    <li><b>Academic setup:</b> Exam schedule, question papers, results workflow, holidays, notices aur documents configure karein.</li>
+    <li><b>Operational services:</b> Transport vehicles/routes/student allocation, hostel/rooms/allocation, library books/issues, payroll aur finance data setup karein.</li>
+  </ol>
+  <div class="warn"><b>Important dependency:</b> Student create karne se pehle selected class/section available honi chahiye. Teacher create pehle karna recommended hai, taki class create karte waqt class teacher assign ho sake.</div>
+
+  <h2>2. Admin ka complete kaam</h2>
+  <table><tr><th>Area</th><th>Admin kya karta hai</th></tr>
+  <tr><td>Dashboard</td><td>Students, teachers, classes, fee/attendance aur system overview dekhta hai.</td></tr>
+  <tr><td>Students</td><td>Create, update, photo/Aadhaar upload, documents upload, class mapping aur delete/manage karta hai.</td></tr>
+  <tr><td>Teachers</td><td>Teacher login/profile create, update, basic salary/profile image/Aadhaar aur class assignment manage karta hai.</td></tr>
+  <tr><td>Classes</td><td>Class + section banata hai aur class teacher assign karta hai.</td></tr>
+  <tr><td>Academics</td><td>Timetable, examinations, results publishing, admit cards, notices, holidays aur attendance reports manage karta hai.</td></tr>
+  <tr><td>Finance</td><td>Fees, college finance transactions, payroll runs aur accounts users manage karta hai.</td></tr>
+  <tr><td>Services</td><td>Transport, hostel, library, student documents aur smart-attendance sessions/devices manage karta hai.</td></tr></table>
+
+  <h2>3. Teacher ka complete flow</h2>
+  <ol>
+    <li>Teacher apne email/password se login karta hai.</li>
+    <li>Dashboard par assigned class, students, schedule aur relevant totals dekhta hai.</li>
+    <li><b>My Class:</b> Sirf assigned/mapped class ke students dekh sakta hai.</li>
+    <li><b>Lectures/Timetable:</b> Apne periods aur class timetable dekhta hai.</li>
+    <li><b>Attendance:</b> QR attendance session ya normal attendance ke through class attendance mark karta hai.</li>
+    <li><b>Homework/Assignments:</b> Class ke liye homework create karta hai; student portal par wahi homework visible hota hai.</li>
+    <li><b>Results:</b> Assigned exam mein marks enter karta hai aur submit karta hai. Admin review/publish ke baad student ko result dikhai deta hai.</li>
+    <li><b>Notices & admit cards:</b> Notices dekh sakta hai aur admit-card information access karta hai.</li>
+  </ol>
+
+  <h2>4. Student ka complete flow</h2>
+  <ol>
+    <li>Admin student record create karta hai; wahi email/password student login ke liye use hota hai.</li>
+    <li>Student dashboard par personal profile, attendance, fee aur academic summary dekhta hai.</li>
+    <li><b>Timetable:</b> Assigned class/section ka schedule dekhta hai.</li>
+    <li><b>Homework:</b> Teacher ka posted homework dekhta hai.</li>
+    <li><b>Attendance:</b> QR attendance use kar sakta hai aur apni attendance records dekh sakta hai.</li>
+    <li><b>Results/Exams:</b> Published results, examinations aur available admit-card status dekhta hai.</li>
+    <li><b>Fees:</b> Fee due/payment status aur related information dekhta hai.</li>
+    <li><b>Services:</b> Library issue history, teachers, notices, transport/hostel related campus services aur personal documents access karta hai.</li>
+  </ol>
+
+  <div class="page"></div>
+  <h2>5. Accountant ka complete flow</h2>
+  <p>Accountant ka role finance-focused hai. Isko student/teacher master records aur document management ka access nahi diya gaya hai.</p>
+  <table><tr><th>Allowed</th><th>Not allowed</th></tr>
+  <tr><td>Accounts dashboard, fees, finance transactions, payroll information</td><td>Students create/edit/delete, teachers/classes management, student documents</td></tr>
+  <tr><td>Fee stats, class-wise fee work, finance dashboard, payroll runs</td><td>Admin-only destructive management actions</td></tr></table>
+  <p>Finance mein income/expense transactions manage hote hain. Fees mein student payments/status track hote hain. Payroll mein staff salary records aur payment runs handle hote hain. Important finance actions audit log mein record hote hain.</p>
+
+  <h2>6. Daily end-to-end example</h2>
+  <ol>
+    <li>Admin morning mein new admissions add karta hai aur unhe existing class/section se map karta hai.</li>
+    <li>Teacher apna timetable dekhta hai, class leta hai aur attendance/homework update karta hai.</li>
+    <li>Student login karke homework, timetable, attendance aur notices check karta hai.</li>
+    <li>Accountant received fee payment ko system mein record karta hai; fee status update hota hai.</li>
+    <li>Exam period mein Admin exam schedule banata hai; Teacher marks fill/submit karta hai; Admin approve/release/publish karta hai; Student published result dekhta hai.</li>
+    <li>Month-end par Accountant/Admin finance aur payroll reconcile karta hai.</li>
+  </ol>
+
+  <h2>7. Module-wise data flow</h2>
+  <table><tr><th>Module</th><th>Data ka source</th><th>Kaun use karta hai</th></tr>
+  <tr><td>Class & Teacher mapping</td><td>Admin creates class + assigns teacher</td><td>Teacher class list, student timetable/teacher list</td></tr>
+  <tr><td>Student admission</td><td>Admin student record + class mapping</td><td>Student login, fees, attendance, results, services</td></tr>
+  <tr><td>Attendance</td><td>Teacher/Admin marks or QR session</td><td>Admin reports, student dashboard</td></tr>
+  <tr><td>Homework</td><td>Teacher creates for mapped class</td><td>Student homework list</td></tr>
+  <tr><td>Results</td><td>Admin exam + teacher marks + admin publish</td><td>Student results/marksheet</td></tr>
+  <tr><td>Fees</td><td>Admin/Accounts manages fee data and payments</td><td>Admin/Accounts reports, student fee page</td></tr>
+  <tr><td>Campus services</td><td>Admin configures hostel, transport, library</td><td>Student campus-services/profile views</td></tr></table>
+
+  <h2>8. Best-practice checklist</h2>
+  <ul>
+    <li>Class/section aur teacher mapping student admissions se pehle complete karein.</li>
+    <li>Har user ke liye unique email use karein.</li>
+    <li>Phone: exactly 10 digits; Aadhaar: exactly 12 digits; PIN code: exactly 6 digits.</li>
+    <li>Result publish karne se pehle marks, fee-clearance policy aur class mapping verify karein.</li>
+    <li>Students/teachers ko delete karne se pehle linked academic/financial records review karein.</li>
+    <li>Accountant ko sirf finance role mein rakhein; admin credentials share na karein.</li>
+  </ul>
+</body>
+</html>

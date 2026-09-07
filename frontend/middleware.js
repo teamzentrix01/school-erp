@@ -13,6 +13,7 @@ const STUDENT_ROUTES = [
   "/students/timetable",
   "/students/attendance",
   "/students/examinations",
+  "/students/certificates",
 ];
 
 const TEACHER_ROUTES = [
@@ -24,6 +25,7 @@ const TEACHER_ROUTES = [
   "/teachers/profile",
   "/teachers/results",
   "/teachers/attendance",
+  "/teachers/admit-cards",
 ];
 
 const ACCOUNTS_ROUTES = [
@@ -31,6 +33,7 @@ const ACCOUNTS_ROUTES = [
   "/fees",
   "/finance",
   "/payroll",
+  "/legacy-fees",
 ];
 
 const isWithin = (pathname, routes) =>
@@ -97,5 +100,7 @@ function roleDashboard(role) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|api/|login).*)"],
+  matcher: [
+    "/((?!_next/static|_next/image|favicon.ico|api/|login|manifest.webmanifest|sw.js|offline.html|icons/).*)",
+  ],
 };

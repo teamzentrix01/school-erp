@@ -6,6 +6,80 @@ const ExcelJS = require("exceljs");
 // HELPER: today's date in YYYY-MM-DD
 // ─────────────────────────────────────────────────────────────────────────────
 const todayStr = () => new Date().toISOString().split("T")[0];
+const validDate = (value) => /^\d{4}-\d{2}-\d{2}$/.test(String(value || ""));
+
+exports.getTeacherAttendance = async (req, res) => {
+  const date = req.query.date || todayStr();
+  if (!validDate(date)) return res.status(400).json({ message: "Valid date is required" });
+  try {
+    const { rows } = await pool.query(
+      `SELECT t.id AS teacher_id, t.employee_id,
+              COALESCE(
+                NULLIF(BTRIM(t.subject), ''),
+                (SELECT STRING_AGG(DISTINCT ts.subject, ', ' ORDER BY ts.subject)
+                 FROM teacher_subjects ts
+                 WHERE ts.teacher_id=t.id AND NULLIF(BTRIM(ts.subject), '') IS NOT NULL)
+              ) AS subject,
+              t.department,
+              u.name, COALESCE(ta.status, 'Not Marked') AS status,
+              ta.check_in, ta.check_out, ta.attendance_method
+       FROM teachers t
+       JOIN users u ON u.id=t.user_id
+       LEFT JOIN teacher_attendance ta ON ta.teacher_id=t.id AND ta.date=$1
+       WHERE COALESCE(t.status,'Active')='Active' AND u.is_active=TRUE
+       ORDER BY u.name`,
+      [date],
+    );
+    res.json({ date, teachers: rows });
+  } catch (err) {
+    console.error("getTeacherAttendance:", err);
+    res.status(500).json({ message: "Failed to load teacher attendance" });
+  }
+};
+
+exports.saveTeacherAttendance = async (req, res) => {
+  const { date = todayStr(), records } = req.body;
+  const allowed = new Set(["Present", "Absent", "Leave"]);
+  if (!validDate(date) || !Array.isArray(records) || !records.length ||
+      records.some((record) => !Number.isInteger(Number(record.teacher_id)) || !allowed.has(record.status))) {
+    return res.status(400).json({ message: "Valid date and teacher attendance records are required" });
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    for (const record of records) {
+      await client.query(
+        `INSERT INTO teacher_attendance (teacher_id,date,status,attendance_method)
+         VALUES ($1,$2,$3,'Manual')
+         ON CONFLICT (teacher_id,date) DO UPDATE SET
+           status=EXCLUDED.status,
+           attendance_method='Manual',
+           updated_at=NOW()`,
+        [Number(record.teacher_id), date, record.status],
+      );
+    }
+    const { rows } = await client.query(
+      `SELECT COUNT(*)::int AS count
+       FROM timetable tt
+       JOIN teacher_attendance ta ON ta.teacher_id=tt.teacher_id AND ta.date=$1
+       LEFT JOIN teacher_arrangements ar ON ar.timetable_id=tt.id
+         AND ar.arrangement_date=$1 AND ar.status='assigned'
+       WHERE LOWER(ta.status) IN ('absent','leave')
+         AND tt.day_of_week=TRIM(TO_CHAR($1::date,'Day'))
+         AND ar.id IS NULL`,
+      [date],
+    );
+    await client.query("COMMIT");
+    res.json({ message: "Teacher attendance saved", arrangement_required: rows[0].count });
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error("saveTeacherAttendance:", err);
+    res.status(500).json({ message: "Failed to save teacher attendance" });
+  } finally {
+    client.release();
+  }
+};
 
 const assertClassAccess = async (user, classId, db = pool) => {
   if (user.role === "admin") return;

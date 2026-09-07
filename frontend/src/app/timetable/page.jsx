@@ -130,7 +130,7 @@ function SummaryCard({ label, value, icon: Icon, accent, bg, sub }) {
   );
 }
 
-function PeriodCell({ entry, period, onAdd, onEdit, onDelete }) {
+function PeriodCell({ entry, period, onAdd, onEdit, onDelete, onArrange }) {
   if (period.type === "break") {
     return (
       <div className="h-full min-h-[72px] rounded-xl border border-amber-200 bg-amber-50/70 p-2.5 text-xs font-semibold text-amber-700 flex items-center justify-center">
@@ -158,11 +158,124 @@ function PeriodCell({ entry, period, onAdd, onEdit, onDelete }) {
           </div>
           <p className={`text-[10px] mt-2 leading-tight ${col.text} opacity-70 truncate`}>
             {entry.teacher_name || "Teacher"}
+            {entry.substitute_teacher_name && ` / ${entry.substitute_teacher_name}`}
           </p>
+          {entry.arrangement_date && <p className="mt-1 text-[9px] font-semibold text-amber-700">Arrangement: {String(entry.arrangement_date).slice(0, 10)}</p>}
         </div>
         <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+          <button onClick={() => onArrange(entry)} title="Arrange substitute" className="p-1 rounded-md hover:bg-white/70 text-gray-400 hover:text-amber-600"><UserCog size={11} /></button>
           <button onClick={() => onEdit(entry)} className="p-1 rounded-md hover:bg-white/70 text-gray-400 hover:text-blue-600"><Pencil size={11} /></button>
           <button onClick={() => onDelete(entry.id)} className="p-1 rounded-md hover:bg-white/70 text-gray-400 hover:text-red-500"><Trash2 size={11} /></button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function nextDateForDay(dayName) {
+  const index = DAY_OPTIONS.indexOf(dayName);
+  const targetJsDay = index === 6 ? 0 : index + 1;
+  const date = new Date();
+  const offset = (targetJsDay - date.getDay() + 7) % 7;
+  date.setDate(date.getDate() + offset);
+  return toDateInput(date);
+}
+
+function ArrangementModal({ entry, onClose, onSaved }) {
+  const [date, setDate] = useState(() => nextDateForDay(entry.day_of_week));
+  const [data, setData] = useState(null);
+  const [teacherId, setTeacherId] = useState("");
+  const [type, setType] = useState("substitute");
+  const [notes, setNotes] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    setError("");
+    apiFetch(`/timetable/${entry.id}/arrangement?date=${date}`)
+      .then((response) => {
+        if (!active) return;
+        setData(response);
+        setTeacherId(response.current_arrangement?.substitute_teacher_id ? String(response.current_arrangement.substitute_teacher_id) : String(response.suggestions[0]?.id || ""));
+        setType(response.current_arrangement?.arrangement_type || "substitute");
+        setNotes(response.current_arrangement?.notes || "");
+      })
+      .catch((err) => active && setError(err.message))
+      .finally(() => active && setLoading(false));
+    return () => { active = false; };
+  }, [entry.id, date]);
+
+  async function save() {
+    setSaving(true);
+    setError("");
+    try {
+      await apiFetch(`/timetable/${entry.id}/arrangement`, {
+        method: "POST",
+        body: JSON.stringify({
+          arrangement_date: date,
+          arrangement_type: type,
+          substitute_teacher_id: type === "substitute" ? Number(teacherId) : null,
+          notes: notes || null,
+        }),
+      });
+      onSaved("Teacher arrangement saved");
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function cancel() {
+    if (!data?.current_arrangement) return;
+    setSaving(true);
+    try {
+      await apiFetch(`/timetable-arrangements/${data.current_arrangement.id}`, { method: "DELETE" });
+      onSaved("Arrangement cancelled");
+    } catch (err) {
+      setError(err.message);
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-[100] bg-black/40 flex items-center justify-center p-4">
+      <div className="w-full max-w-lg bg-white rounded-2xl shadow-2xl overflow-hidden">
+        <div className="px-6 py-4 border-b flex items-center justify-between">
+          <div><h2 className="font-bold text-gray-900">Teacher Arrangement</h2><p className="text-xs text-gray-500 mt-1">{entry.subject} · {entry.day_of_week} · P{entry.period_number}</p></div>
+          <button onClick={onClose}><X size={18} /></button>
+        </div>
+        <div className="p-6 space-y-4">
+          <label className="block text-xs font-semibold text-gray-600">Arrangement date
+            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="mt-1 w-full border rounded-xl px-3 py-2.5 text-sm" />
+          </label>
+          {loading ? <div className="py-8 flex justify-center"><Loader2 className="animate-spin" /></div> : data && <>
+            <div className={`rounded-xl px-4 py-3 text-sm ${data.arrangement_required ? "bg-red-50 text-red-700" : "bg-emerald-50 text-emerald-700"}`}>
+              Original teacher: {data.period.original_teacher_name} · {data.original_teacher_status}
+            </div>
+            <label className="block text-xs font-semibold text-gray-600">Arrangement type
+              <select value={type} onChange={(e) => setType(e.target.value)} className="mt-1 w-full border rounded-xl px-3 py-2.5 text-sm">
+                <option value="substitute">Substitute teacher</option><option value="self_study">Self study</option><option value="library">Library</option><option value="combined_class">Combined class</option><option value="free_period">Free period</option>
+              </select>
+            </label>
+            {type === "substitute" && <label className="block text-xs font-semibold text-gray-600">Available teachers
+              <select value={teacherId} onChange={(e) => setTeacherId(e.target.value)} className="mt-1 w-full border rounded-xl px-3 py-2.5 text-sm">
+                {!data.suggestions.length && <option value="">No teacher available</option>}
+                {data.suggestions.map((teacher) => <option key={teacher.id} value={teacher.id}>{teacher.name}{teacher.subject_match ? " · Same subject" : ""} · {teacher.daily_load} periods/day</option>)}
+              </select>
+            </label>}
+            <label className="block text-xs font-semibold text-gray-600">Notes
+              <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} className="mt-1 w-full border rounded-xl px-3 py-2.5 text-sm" />
+            </label>
+          </>}
+          {error && <p className="text-sm text-red-600">{error}</p>}
+        </div>
+        <div className="px-6 py-4 border-t flex justify-between gap-3">
+          <div>{data?.current_arrangement && <button onClick={cancel} disabled={saving} className="px-4 py-2 text-sm text-red-600">Cancel arrangement</button>}</div>
+          <div className="flex gap-2"><button onClick={onClose} className="px-4 py-2 border rounded-xl text-sm">Close</button><button onClick={save} disabled={saving || loading || (type === "substitute" && !teacherId)} className="px-4 py-2 bg-amber-600 text-white rounded-xl text-sm font-semibold disabled:opacity-50">{saving ? "Saving..." : "Assign"}</button></div>
         </div>
       </div>
     </div>
@@ -522,6 +635,7 @@ export default function TimetablePage() {
   const [monthDate, setMonthDate] = useState(() => new Date());
   const [search, setSearch] = useState("");
   const [periodModal, setPeriodModal] = useState(null);
+  const [arrangementModal, setArrangementModal] = useState(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [eventModal, setEventModal] = useState(null);
   const [deletePeriodId, setDeletePeriodId] = useState(null);
@@ -893,6 +1007,7 @@ export default function TimetablePage() {
                                 onAdd={() => setPeriodModal({ day_of_week: day, period_number: period.number })}
                                 onEdit={(item) => setPeriodModal(item)}
                                 onDelete={setDeletePeriodId}
+                                onArrange={setArrangementModal}
                               />
                             </td>
                           );
@@ -1046,6 +1161,17 @@ export default function TimetablePage() {
           teachers={teacherOptions}
           classId={activeClassId}
           settings={settings}
+        />
+      )}
+      {arrangementModal && (
+        <ArrangementModal
+          entry={arrangementModal}
+          onClose={() => setArrangementModal(null)}
+          onSaved={(message) => {
+            setArrangementModal(null);
+            showToast(message);
+            fetchTimetable();
+          }}
         />
       )}
       {settingsOpen && (

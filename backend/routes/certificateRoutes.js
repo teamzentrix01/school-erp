@@ -1,0 +1,10 @@
+const router = require("express").Router();
+const { protect, authorizeRoles } = require("../middleware/authMiddleware");
+const controller = require("../controllers/certificateController");
+router.use(protect);
+router.get("/my", authorizeRoles("student"), controller.getMyRequests);
+router.post("/requests", authorizeRoles("student"), controller.createRequest);
+router.get("/requests", authorizeRoles("admin"), controller.getRequests);
+router.put("/requests/:id/review", authorizeRoles("admin"), controller.reviewRequest);
+router.get("/:id/download", authorizeRoles("admin", "student"), controller.downloadCertificate);
+module.exports = router;

@@ -183,6 +183,20 @@ async function backfillMissingPeriodTimes(classId) {
   }
 }
 
+const ARRANGEMENT_TYPES = new Set([
+  "substitute", "self_study", "library", "combined_class", "free_period",
+]);
+
+function isValidDate(value) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(String(value || "")) &&
+    !Number.isNaN(new Date(`${value}T00:00:00Z`).getTime());
+}
+
+function weekdayForDate(value) {
+  return new Intl.DateTimeFormat("en-US", { weekday: "long", timeZone: "UTC" })
+    .format(new Date(`${value}T00:00:00Z`));
+}
+
 async function ensureNoConflicts({ classId, teacherId, dayOfWeek, startTime, excludeId = null }) {
   const classConflict = await pool.query(
     `SELECT id
@@ -237,10 +251,26 @@ const getTimetable = async (req, res) => {
            ${PERIOD_NUMBER_SQL} AS period_number,
            u.name        AS teacher_name,
            t.employee_id AS teacher_code,
-           t.profile_picture
+           t.profile_picture,
+           ar.id          AS arrangement_id,
+           ar.arrangement_date,
+           ar.arrangement_type,
+           ar.substitute_teacher_id,
+           ar.substitute_teacher_name
          FROM timetable tt
          JOIN teachers t ON tt.teacher_id = t.id
          JOIN users    u ON t.user_id     = u.id
+         LEFT JOIN LATERAL (
+           SELECT ta.id, ta.arrangement_date, ta.arrangement_type,
+                  ta.substitute_teacher_id, su.name AS substitute_teacher_name
+           FROM teacher_arrangements ta
+           LEFT JOIN teachers st ON st.id=ta.substitute_teacher_id
+           LEFT JOIN users su ON su.id=st.user_id
+           WHERE ta.timetable_id=tt.id AND ta.status='assigned'
+             AND ta.arrangement_date>=CURRENT_DATE
+           ORDER BY ta.arrangement_date
+           LIMIT 1
+         ) ar ON TRUE
          WHERE tt.class_id = $1
        ) timetable_rows
        ORDER BY ${DAY_ORDER_SQL}, period_number, id`,
@@ -422,6 +452,163 @@ const deletePeriod = async (req, res) => {
   }
 };
 
+const getArrangementOptions = async (req, res) => {
+  const { id } = req.params;
+  const { date } = req.query;
+  if (!isValidDate(date)) return res.status(400).json({ message: "A valid arrangement date is required" });
+
+  try {
+    const periodResult = await pool.query(
+      `SELECT tt.*, u.name AS original_teacher_name, c.grade, c.section
+       FROM timetable tt
+       JOIN teachers t ON t.id=tt.teacher_id
+       JOIN users u ON u.id=t.user_id
+       LEFT JOIN classes c ON c.id=tt.class_id
+       WHERE tt.id=$1`,
+      [id],
+    );
+    if (!periodResult.rows.length) return res.status(404).json({ message: "Period not found" });
+    const period = periodResult.rows[0];
+    if (weekdayForDate(date) !== period.day_of_week) {
+      return res.status(400).json({ message: `Selected date must be a ${period.day_of_week}` });
+    }
+
+    const [attendance, existing, suggestions] = await Promise.all([
+      pool.query("SELECT status FROM teacher_attendance WHERE teacher_id=$1 AND date=$2", [period.teacher_id, date]),
+      pool.query(
+        `SELECT ta.*, u.name AS substitute_teacher_name
+         FROM teacher_arrangements ta
+         LEFT JOIN teachers st ON st.id=ta.substitute_teacher_id
+         LEFT JOIN users u ON u.id=st.user_id
+         WHERE ta.timetable_id=$1 AND ta.arrangement_date=$2`,
+        [id, date],
+      ),
+      pool.query(
+        `SELECT t.id, u.name, t.employee_id,
+                COALESCE(NULLIF(BTRIM(t.subject), ''),
+                  (SELECT STRING_AGG(DISTINCT ts.subject, ', ' ORDER BY ts.subject)
+                   FROM teacher_subjects ts WHERE ts.teacher_id=t.id)) AS subject,
+                (LOWER(COALESCE(t.subject,''))=LOWER($1) OR EXISTS (
+                  SELECT 1 FROM teacher_subjects match_subject
+                  WHERE match_subject.teacher_id=t.id AND LOWER(match_subject.subject)=LOWER($1)
+                )) AS subject_match,
+                (SELECT COUNT(*)::int FROM timetable own
+                  WHERE own.teacher_id=t.id AND own.day_of_week=$2) AS daily_load
+         FROM teachers t
+         JOIN users u ON u.id=t.user_id AND u.is_active=TRUE
+         WHERE t.id<>$3
+           AND NOT EXISTS (
+             SELECT 1 FROM teacher_attendance a
+             WHERE a.teacher_id=t.id AND a.date=$4 AND LOWER(a.status) IN ('absent','leave')
+           )
+           AND NOT EXISTS (
+             SELECT 1 FROM timetable busy
+             WHERE busy.teacher_id=t.id AND busy.day_of_week=$2 AND busy.start_time=$5
+           )
+           AND NOT EXISTS (
+             SELECT 1 FROM teacher_arrangements ar
+             JOIN timetable art ON art.id=ar.timetable_id
+             WHERE ar.substitute_teacher_id=t.id AND ar.arrangement_date=$4
+               AND ar.status='assigned' AND art.start_time=$5
+               AND ar.timetable_id<>$6
+           )
+         ORDER BY subject_match DESC, daily_load ASC, u.name`,
+        [period.subject, period.day_of_week, period.teacher_id, date, period.start_time, id],
+      ),
+    ]);
+
+    const attendanceStatus = attendance.rows[0]?.status || "Not marked";
+    res.json({
+      period,
+      arrangement_date: date,
+      original_teacher_status: attendanceStatus,
+      arrangement_required: ["absent", "leave"].includes(attendanceStatus.toLowerCase()),
+      current_arrangement: existing.rows[0] || null,
+      suggestions: suggestions.rows,
+    });
+  } catch (err) {
+    console.error("getArrangementOptions:", err);
+    res.status(500).json({ message: "Failed to load teacher availability" });
+  }
+};
+
+const saveArrangement = async (req, res) => {
+  const { id } = req.params;
+  const { arrangement_date, substitute_teacher_id = null, arrangement_type = "substitute", notes = null } = req.body;
+  if (!isValidDate(arrangement_date) || !ARRANGEMENT_TYPES.has(arrangement_type)) {
+    return res.status(400).json({ message: "Valid date and arrangement type are required" });
+  }
+  if (arrangement_type === "substitute" && !substitute_teacher_id) {
+    return res.status(400).json({ message: "Select a substitute teacher" });
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const periodResult = await client.query("SELECT * FROM timetable WHERE id=$1 FOR UPDATE", [id]);
+    if (!periodResult.rows.length) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ message: "Period not found" });
+    }
+    const period = periodResult.rows[0];
+    if (weekdayForDate(arrangement_date) !== period.day_of_week) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({ message: `Selected date must be a ${period.day_of_week}` });
+    }
+
+    if (arrangement_type === "substitute") {
+      const available = await client.query(
+        `SELECT t.id FROM teachers t JOIN users u ON u.id=t.user_id AND u.is_active=TRUE
+         WHERE t.id=$1 AND t.id<>$2
+           AND NOT EXISTS (SELECT 1 FROM teacher_attendance a WHERE a.teacher_id=t.id AND a.date=$3 AND LOWER(a.status) IN ('absent','leave'))
+           AND NOT EXISTS (SELECT 1 FROM timetable tt WHERE tt.teacher_id=t.id AND tt.day_of_week=$4 AND tt.start_time=$5)
+           AND NOT EXISTS (
+             SELECT 1 FROM teacher_arrangements ar JOIN timetable tt ON tt.id=ar.timetable_id
+             WHERE ar.substitute_teacher_id=t.id AND ar.arrangement_date=$3 AND ar.status='assigned'
+               AND tt.start_time=$5 AND ar.timetable_id<>$6
+           )`,
+        [substitute_teacher_id, period.teacher_id, arrangement_date, period.day_of_week, period.start_time, id],
+      );
+      if (!available.rows.length) throw createConflictError("Selected teacher is absent or busy in this period");
+    }
+
+    const result = await client.query(
+      `INSERT INTO teacher_arrangements
+       (timetable_id, arrangement_date, original_teacher_id, substitute_teacher_id, arrangement_type, notes, status, created_by)
+       VALUES ($1,$2,$3,$4,$5,$6,'assigned',$7)
+       ON CONFLICT (timetable_id, arrangement_date) DO UPDATE SET
+         substitute_teacher_id=EXCLUDED.substitute_teacher_id,
+         arrangement_type=EXCLUDED.arrangement_type, notes=EXCLUDED.notes,
+         status='assigned', updated_at=NOW()
+       RETURNING *`,
+      [id, arrangement_date, period.teacher_id, substitute_teacher_id, arrangement_type, notes, req.user?.id || null],
+    );
+    await client.query("COMMIT");
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    await client.query("ROLLBACK");
+    if (err.statusCode === 409) return res.status(409).json({ message: err.message });
+    console.error("saveArrangement:", err);
+    res.status(500).json({ message: "Failed to save teacher arrangement" });
+  } finally {
+    client.release();
+  }
+};
+
+const cancelArrangement = async (req, res) => {
+  try {
+    const result = await pool.query(
+      "UPDATE teacher_arrangements SET status='cancelled', updated_at=NOW() WHERE id=$1 RETURNING id",
+      [req.params.id],
+    );
+    if (!result.rows.length) return res.status(404).json({ message: "Arrangement not found" });
+    res.json({ message: "Arrangement cancelled" });
+  } catch (err) {
+    console.error("cancelArrangement:", err);
+    res.status(500).json({ message: "Failed to cancel arrangement" });
+  }
+};
+
 const getTimetableEvents = async (req, res) => {
   const { scope, class_id } = req.query;
   try {
@@ -568,4 +755,7 @@ module.exports = {
   createTimetableEvent,
   updateTimetableEvent,
   deleteTimetableEvent,
+  getArrangementOptions,
+  saveArrangement,
+  cancelArrangement,
 };

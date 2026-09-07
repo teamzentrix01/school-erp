@@ -4,6 +4,7 @@ const cors = require("cors");
 const path = require("path");
 require("dotenv").config();
 const initDatabase = require("./config/initDatabase");
+const runMigrations = require("./config/runMigrations");
 
 const authRoutes = require("./routes/authRoutes");
 const adminRoutes = require("./routes/adminRoutes");
@@ -26,6 +27,8 @@ const financeRoutes = require("./routes/financeRoutes");
 const examinationRoutes = require("./routes/examinationRoutes");
 const smartAttendanceRoutes = require("./routes/smartAttendanceRoutes");
 const accountsRoutes = require("./routes/accountsRoutes");
+const certificateRoutes = require("./routes/certificateRoutes");
+const legacyFeeRoutes = require("./routes/legacyFeeRoutes");
 const { requestValidation } = require("./middleware/requestValidation");
 
 const app = express();
@@ -62,6 +65,8 @@ app.use("/api/documents", documentRoutes);
 app.use("/api/examinations", examinationRoutes);
 app.use("/api/smart-attendance", smartAttendanceRoutes);
 app.use("/api/accounts", accountsRoutes);
+app.use("/api/certificates", certificateRoutes);
+app.use("/api/legacy-fees", legacyFeeRoutes);
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 app.use((req, res) => res.status(404).json({ message: "Route not found" }));
@@ -70,6 +75,7 @@ const PORT = process.env.PORT || 5000;
 
 async function startServer(port = PORT) {
   await initDatabase();
+  await runMigrations();
   return new Promise((resolve) => {
     const server = app.listen(port, () => {
       console.log(`Server running on http://localhost:${port}`);

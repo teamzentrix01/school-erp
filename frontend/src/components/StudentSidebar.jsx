@@ -31,6 +31,7 @@ const STUDENT_NAV = [
         href: "/students/dashboard",
       },
       { icon: GraduationCap, label: "My Profile", href: "/students/profile" },
+      { icon: ClipboardList, label: "Certificates", href: "/students/certificates" },
       { icon: CalendarDays, label: "Timetable", href: "/students/timetable" },
       { icon: BookOpen, label: "Homework", href: "/students/homework" }, // ✅ NEW
       { icon: BarChart3, label: "My Results", href: "/students/results" },

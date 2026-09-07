@@ -11,6 +11,8 @@ frontend/.next/
 frontend/.next-local/
 dist/
 build/
+output/
+tmp/
 
 uploads/
 backend/uploads/

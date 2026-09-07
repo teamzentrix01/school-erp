@@ -1454,7 +1454,7 @@ export default function StudentsPage() {
       await fetchAll();
     } catch (err) {
       console.error("Delete error:", err);
-      showToast("Failed to delete. Please try again.", "error");
+      showToast(err?.message || "Failed to delete. Please try again.", "error");
     } finally {
       setSaving(false);
     }

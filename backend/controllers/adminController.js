@@ -335,7 +335,18 @@ const deleteStudent = async (req, res) => {
     }
     const userId = studentRow.rows[0].user_id;
 
-    await client.query("DELETE FROM students WHERE id = $1", [id]);
+    // Older databases created these payment-order foreign keys without
+    // ON DELETE CASCADE. Remove the orders explicitly so deleting a student
+    // works both before and after the constraint migration is deployed.
+    await client.query("DELETE FROM fee_payment_orders WHERE student_id = $1", [id]);
+
+    const deletedStudent = await client.query(
+      "DELETE FROM students WHERE id = $1 RETURNING id",
+      [id]
+    );
+    if (deletedStudent.rowCount !== 1) {
+      throw new Error("Student disappeared during deletion");
+    }
     await client.query("DELETE FROM users WHERE id = $1", [userId]);
 
     await client.query("COMMIT");
@@ -343,7 +354,7 @@ const deleteStudent = async (req, res) => {
   } catch (err) {
     await client.query("ROLLBACK");
     console.error("deleteStudent error:", err);
-    res.status(500).json({ message: "Server error" });
+    res.status(500).json({ message: "Unable to delete student and related records" });
   } finally {
     client.release();
   }
