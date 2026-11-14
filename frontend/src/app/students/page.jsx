@@ -625,7 +625,6 @@ function AddEditModal({ student, classMeta, onClose, onSave, saving }) {
     if (!form.name.trim()) return alert("Student name is required.");
     if (!form.roll.trim()) return alert("Roll number is required.");
     if (!form.classId) return alert("Please select a class.");
-    if (!isEdit && !form.email.trim()) return alert("Email is required.");
     if (!isEdit && !form.password.trim()) return alert("Password is required.");
     if (!isValidDateValue(form.dob))
       return alert("Date of birth must use a valid 4-digit year.");
@@ -727,7 +726,7 @@ function AddEditModal({ student, classMeta, onClose, onSave, saving }) {
         {!isEdit && (
           <>
             <Field
-              label="Email *"
+              label="Email (Optional)"
               value={form.email}
               onChange={(v) => set("email", v)}
               placeholder="student@school.edu"

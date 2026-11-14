@@ -159,9 +159,9 @@ const createStudent = async (req, res) => {
  console.log("🔍 req.body received:", JSON.stringify(req.body, null, 2));
   console.log("🔍 aadhar_number value:", aadhar_number, "| type:", typeof aadhar_number);
 
-  if (!name || !email || !password || !roll_number || !class_id) {
+  if (!name || !password || !roll_number || !class_id) {
     return res.status(400).json({
-      message: "name, email, password, roll_number, and class_id are required",
+      message: "name, password, roll_number, and class_id are required",
     });
   }
   if (!isValidDateString(date_of_birth)) {
@@ -185,11 +185,12 @@ const createStudent = async (req, res) => {
     await client.query("BEGIN");
 
     const hashedPassword = await bcrypt.hash(password, 10);
+    const normalizedEmail = email?.trim() || null;
     const userResult = await client.query(
       `INSERT INTO users (name, email, password, role, is_active)
        VALUES ($1, $2, $3, 'student', true)
        RETURNING id`,
-      [name, email, hashedPassword]
+      [name, normalizedEmail, hashedPassword]
     );
     const userId = userResult.rows[0].id;
 
@@ -229,7 +230,7 @@ const createStudent = async (req, res) => {
     res.status(201).json({
       ...studentResult.rows[0],
       name,
-      email,
+      email: normalizedEmail,
     });
   } catch (err) {
     await client.query("ROLLBACK");
