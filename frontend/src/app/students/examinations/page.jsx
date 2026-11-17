@@ -220,7 +220,9 @@ export default function StudentExaminationsPage() {
                 card={printCard}
                 student={data.student}
                 schedule={data.schedule.filter(
-                  (item) => Number(item.exam_id) === Number(printCard.exam_id),
+                  (item) =>
+                    Number(item.exam_id) === Number(printCard.exam_id) ||
+                    item.exam_name === printCard.exam_name,
                 )}
                 verificationQr={verificationQr}
               />

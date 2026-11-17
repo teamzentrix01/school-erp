@@ -463,10 +463,29 @@ const getTeacherAdmitCards = async (req, res) => {
          JOIN users u ON u.id=s.user_id
          LEFT JOIN LATERAL (
            SELECT JSON_AGG(JSON_BUILD_OBJECT(
-             'subject',subject,'exam_date',exam_date,'start_time',start_time,
-             'end_time',end_time,'room',room,'instructions',instructions
-           ) ORDER BY exam_date,start_time) AS schedule
-             FROM exam_schedule WHERE exam_id=e.id AND published=TRUE
+             'id',es.id,'subject',es.subject,'exam_date',es.exam_date,
+             'start_time',es.start_time,'end_time',es.end_time,'room',es.room,
+             'instructions',es.instructions
+           ) ORDER BY es.exam_date,es.start_time) AS schedule
+             FROM exam_schedule es
+             JOIN exams scheduled_exam ON scheduled_exam.id=es.exam_id
+            WHERE es.published=TRUE
+              AND (
+                es.exam_id=e.id
+                OR (
+                  LOWER(TRIM(scheduled_exam.name))=LOWER(TRIM(e.name))
+                  AND scheduled_exam.academic_year=e.academic_year
+                  AND (
+                    LOWER(TRIM(scheduled_exam.class))=LOWER(TRIM(e.class))
+                    OR LOWER(TRIM(scheduled_exam.class))=LOWER(TRIM(CONCAT('Class ', e.class)))
+                  )
+                  AND (
+                    e.section IS NULL
+                    OR scheduled_exam.section IS NULL
+                    OR LOWER(TRIM(scheduled_exam.section))=LOWER(TRIM(e.section))
+                  )
+                )
+              )
          ) es ON TRUE
         WHERE t.user_id=$1
           AND COALESCE(c.teacher_id,e.class_teacher_id)=t.id
@@ -492,10 +511,27 @@ const getAdmitCards = async (req, res) => {
        JOIN users u ON u.id=s.user_id
        LEFT JOIN LATERAL (
          SELECT JSON_AGG(JSON_BUILD_OBJECT(
-           'subject',subject,'exam_date',exam_date,'start_time',start_time,
-           'end_time',end_time,'room',room
-         ) ORDER BY exam_date,start_time) AS schedule
-         FROM exam_schedule WHERE exam_id=e.id
+           'id',es.id,'subject',es.subject,'exam_date',es.exam_date,
+           'start_time',es.start_time,'end_time',es.end_time,'room',es.room
+         ) ORDER BY es.exam_date,es.start_time) AS schedule
+           FROM exam_schedule es
+           JOIN exams scheduled_exam ON scheduled_exam.id=es.exam_id
+          WHERE (
+            es.exam_id=e.id
+            OR (
+              LOWER(TRIM(scheduled_exam.name))=LOWER(TRIM(e.name))
+              AND scheduled_exam.academic_year=e.academic_year
+              AND (
+                LOWER(TRIM(scheduled_exam.class))=LOWER(TRIM(e.class))
+                OR LOWER(TRIM(scheduled_exam.class))=LOWER(TRIM(CONCAT('Class ', e.class)))
+              )
+              AND (
+                e.section IS NULL
+                OR scheduled_exam.section IS NULL
+                OR LOWER(TRIM(scheduled_exam.section))=LOWER(TRIM(e.section))
+              )
+            )
+          )
        ) es ON TRUE
        WHERE ac.exam_id=$1 ORDER BY u.name`,
       [req.params.examId],
