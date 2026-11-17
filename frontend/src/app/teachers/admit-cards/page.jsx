@@ -14,10 +14,8 @@ import {
   X,
 } from "lucide-react";
 import TeacherSidebar from "@/components/TeacherSidebar";
+import AdmitCardSheet from "@/components/AdmitCardSheet";
 import { apiFetch } from "@/lib/api";
-
-const SCHOOL_NAME =
-  "PREM SINGH SWATANTRATA SENANI INTER COLLEGE BHATIYANA KHUSHALUR";
 
 export default function TeacherAdmitCardsPage() {
   const [cards, setCards] = useState([]);
@@ -242,39 +240,11 @@ function AdmitCardsPreview({ cards, onClose }) {
         </div>
         <div id="admit-cards-print" className="space-y-4">
           {cards.map((card) => (
-            <article key={card.id} className="bg-white p-6 shadow">
-              <header className="border-b pb-4 text-center">
-                <h2 className="text-xl font-bold">{SCHOOL_NAME}</h2>
-                <p>{card.exam_name} Admit Card</p>
-              </header>
-              <div className="grid grid-cols-2 gap-3 py-4 text-sm">
-                <p>Student: <strong>{card.student_name}</strong></p>
-                <p>Roll No: <strong>{card.roll_number}</strong></p>
-                <p>Class: <strong>{card.class}-{card.section}</strong></p>
-                <p>Card No: <strong>{card.card_number}</strong></p>
-              </div>
-              <table className="w-full text-sm">
-                <thead className="bg-emerald-50">
-                  <tr>
-                    {["Subject", "Date", "Time", "Room"].map((item) => (
-                      <th key={item} className="p-2 text-left">{item}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {(card.schedule || []).map((item) => (
-                    <tr key={`${item.subject}-${item.exam_date}`}>
-                      <td className="p-2">{item.subject}</td>
-                      <td className="p-2">{item.exam_date?.slice(0, 10)}</td>
-                      <td className="p-2">
-                        {item.start_time?.slice(0, 5)}-{item.end_time?.slice(0, 5)}
-                      </td>
-                      <td className="p-2">{item.room || "-"}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </article>
+            <AdmitCardSheet
+              key={card.id}
+              card={card}
+              status={card.published ? "Released" : "On Hold"}
+            />
           ))}
         </div>
       </div>

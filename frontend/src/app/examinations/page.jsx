@@ -17,14 +17,12 @@ import {
   X,
 } from "lucide-react";
 import Sidebar from "@/components/Sidebar";
+import AdmitCardSheet from "@/components/AdmitCardSheet";
 import {
   ConfirmDialog,
   ToastMessage,
 } from "@/components/ActionFeedback";
 import { apiFetch, getMediaUrl } from "@/lib/api";
-
-const SCHOOL_NAME =
-  "PREM SINGH SWATANTRATA SENANI INTER COLLEGE BHATIYANA KHUSHALUR";
 
 const emptySchedule = {
   exam_id: "",
@@ -874,63 +872,11 @@ function CardsModal({ cards, onClose }) {
         </div>
         <div id="admit-cards-print" className="space-y-4">
           {cards.map((card) => (
-            <div key={card.id} className="bg-white p-6 shadow">
-              <div className="border-b pb-4 text-center">
-                <h2 className="text-xl font-bold">{SCHOOL_NAME}</h2>
-                <p className="text-sm">{card.exam_name} Admit Card</p>
-              </div>
-              <div className="grid grid-cols-2 gap-3 py-4 text-sm">
-                <p>
-                  Student: <strong>{card.student_name}</strong>
-                </p>
-                <p>
-                  Roll No: <strong>{card.roll_number}</strong>
-                </p>
-                <p>
-                  Class:{" "}
-                  <strong>
-                    {card.class}
-                    {card.section ? `-${card.section}` : ""}
-                  </strong>
-                </p>
-                <p>
-                  Card No: <strong>{card.card_number}</strong>
-                </p>
-                <p>
-                  Status:{" "}
-                  <strong
-                    className={
-                      card.published ? "text-green-700" : "text-amber-700"
-                    }
-                  >
-                    {card.published ? "Released" : "On Hold"}
-                  </strong>
-                </p>
-              </div>
-              <table className="w-full text-sm">
-                <thead className="bg-orange-50">
-                  <tr>
-                    <th className="p-2 text-left">Subject</th>
-                    <th className="p-2 text-left">Date</th>
-                    <th className="p-2 text-left">Time</th>
-                    <th className="p-2 text-left">Room</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(card.schedule || []).map((item) => (
-                    <tr key={`${item.subject}-${item.exam_date}`}>
-                      <td className="p-2">{item.subject}</td>
-                      <td className="p-2">{item.exam_date?.slice(0, 10)}</td>
-                      <td className="p-2">
-                        {item.start_time?.slice(0, 5)}-
-                        {item.end_time?.slice(0, 5)}
-                      </td>
-                      <td className="p-2">{item.room || "-"}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <AdmitCardSheet
+              key={card.id}
+              card={card}
+              status={card.published ? "Released" : "On Hold"}
+            />
           ))}
         </div>
       </div>

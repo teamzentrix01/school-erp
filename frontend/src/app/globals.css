@@ -109,6 +109,13 @@
     width: 100%;
     border: 0;
   }
+
+  .admit-card-sheet {
+    break-inside: avoid;
+    page-break-inside: avoid;
+    page-break-after: always;
+    min-height: 250mm;
+  }
 }
 
 html { -webkit-text-size-adjust: 100%; }

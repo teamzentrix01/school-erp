@@ -19,6 +19,8 @@ const {
   approvePayment,
   rejectPayment,
   recordCashPayment,
+  updatePayment,
+  getPaymentReceipt,
   getStudentFeesList,
   updateStudentFee,
   setFeeStructure,
@@ -121,6 +123,18 @@ router.post(
   verifyToken,
   requireRole("admin", "accounts"),
   recordCashPayment,
+);
+router.patch(
+  "/admin/payments/:paymentId",
+  verifyToken,
+  requireRole("admin", "accounts"),
+  updatePayment,
+);
+router.get(
+  "/admin/payments/:paymentId/receipt",
+  verifyToken,
+  requireRole("admin", "accounts"),
+  getPaymentReceipt,
 );
 router.post(
   "/structures",

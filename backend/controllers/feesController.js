@@ -5,10 +5,13 @@ const currentAcademicYear = () => {
   const start = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
   return `${start}-${String(start + 1).slice(-2)}`;
 };
+const SCHOOL_NAME =
+  "PREM SINGH SWATANTRATA SENANI INTER COLLEGE BHATIYANA KHUSHALUR, BIJNOR";
 const Razorpay = require("razorpay");
 const crypto = require("crypto");
 const path = require("path");
 const fs = require("fs");
+const PDFDocument = require("pdfkit");
 
 const isRazorpayConfigured = () =>
   Boolean(process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET);
@@ -435,6 +438,156 @@ const recordCashPayment = async (req, res) => {
   }
 };
 
+// ── PATCH /api/fees/admin/payments/:paymentId ────────────────────────────────
+const updatePayment = async (req, res) => {
+  const { paymentId } = req.params;
+  const amount = Number(req.body.amount);
+  const note = typeof req.body.note === "string" ? req.body.note.trim() : null;
+  const paidOn = req.body.paid_on || null;
+
+  if (!Number.isFinite(amount) || amount <= 0)
+    return res.status(400).json({ message: "A valid payment amount is required" });
+
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const paymentRes = await client.query(
+      `SELECT fp.*, sf.total_fees, sf.paid_amount
+       FROM fee_payments fp
+       JOIN student_fees sf ON sf.id = fp.student_fee_id
+       WHERE fp.id = $1
+       FOR UPDATE`,
+      [paymentId],
+    );
+    if (!paymentRes.rows.length) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ message: "Payment not found" });
+    }
+
+    const payment = paymentRes.rows[0];
+    if (payment.status !== "approved") {
+      await client.query("ROLLBACK");
+      return res
+        .status(400)
+        .json({ message: "Only approved payments can be edited" });
+    }
+
+    const newPaid = Number(payment.paid_amount || 0) - Number(payment.amount) + amount;
+    if (newPaid > Number(payment.total_fees || 0)) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({
+        message: `Amount exceeds the student's remaining balance of ₹${(
+          Number(payment.total_fees || 0) - Number(payment.paid_amount || 0) + Number(payment.amount)
+        ).toLocaleString("en-IN")}`,
+      });
+    }
+
+    const newStatus =
+      newPaid >= Number(payment.total_fees || 0)
+        ? "Paid"
+        : newPaid > 0
+          ? "Partial"
+          : "Pending";
+    const updatedPayment = await client.query(
+      `UPDATE fee_payments
+       SET amount = $1,
+           note = COALESCE($2, note),
+           paid_on = COALESCE($3::date, paid_on),
+           updated_at = NOW()
+       WHERE id = $4
+       RETURNING *`,
+      [amount, note || null, paidOn, paymentId],
+    );
+    await client.query(
+      `UPDATE student_fees
+       SET paid_amount = $1, status = $2, updated_at = NOW()
+       WHERE id = $3`,
+      [newPaid, newStatus, payment.student_fee_id],
+    );
+    await client.query("COMMIT");
+    res.json({
+      success: true,
+      message: "Payment updated successfully",
+      payment: updatedPayment.rows[0],
+      new_status: newStatus,
+    });
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error("updatePayment error:", err);
+    res.status(500).json({ message: "Failed to update payment" });
+  } finally {
+    client.release();
+  }
+};
+
+// ── GET /api/fees/admin/payments/:paymentId/receipt ──────────────────────────
+const getPaymentReceipt = async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT fp.*, u.name AS student_name, s.class, s.section, s.roll_number,
+              sf.total_fees, sf.paid_amount,
+              collector.name AS collector_name
+       FROM fee_payments fp
+       JOIN student_fees sf ON sf.id = fp.student_fee_id
+       JOIN students s ON s.id = sf.student_id
+       JOIN users u ON u.id = s.user_id
+       LEFT JOIN users collector ON collector.id = fp.recorded_by
+       WHERE fp.id = $1`,
+      [req.params.paymentId],
+    );
+    if (!result.rows.length)
+      return res.status(404).json({ message: "Payment not found" });
+
+    const payment = result.rows[0];
+    if (payment.status !== "approved")
+      return res.status(400).json({ message: "Receipt is available after approval" });
+
+    const receiptNumber = `FEE-${new Date(payment.paid_on || payment.created_at).getFullYear()}-${String(payment.id).padStart(6, "0")}`;
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader(
+      "Content-Disposition",
+      `inline; filename=${receiptNumber}.pdf`,
+    );
+    const doc = new PDFDocument({ size: "A5", margin: 35, info: { Title: receiptNumber } });
+    doc.pipe(res);
+    doc.rect(20, 20, 380, 555).lineWidth(2).stroke("#1e3a8a");
+    doc.font("Helvetica-Bold").fontSize(11).fillColor("#1e3a8a")
+      .text(process.env.SCHOOL_NAME || SCHOOL_NAME, 42, 42, {
+        width: 336,
+        align: "center",
+      });
+    doc.fontSize(13).fillColor("#111827").text("FEE PAYMENT RECEIPT", { align: "center" });
+    doc.moveDown().font("Helvetica").fontSize(10)
+      .text(`Receipt No: ${receiptNumber}`)
+      .text(`Date: ${new Date(payment.paid_on || payment.created_at).toLocaleDateString("en-IN")}`)
+      .moveDown();
+    [
+      ["Student", payment.student_name],
+      ["Class", `${payment.class || "-"}${payment.section ? `-${payment.section}` : ""}`],
+      ["Roll No.", payment.roll_number || "-"],
+      ["Payment Mode", payment.payment_mode || (payment.razorpay_payment_id ? "Online" : "Cash")],
+      ["Collected By", payment.collector_name || "-"],
+      ["Note", payment.note || "-"],
+    ].forEach(([label, value]) => {
+      doc.font("Helvetica-Bold").text(`${label}: `, { continued: true });
+      doc.font("Helvetica").text(String(value));
+    });
+    const amountTop = doc.y + 12;
+    doc.roundedRect(35, amountTop, 350, 55, 5).fill("#eff6ff");
+    doc.fillColor("#1e3a8a").font("Helvetica-Bold").fontSize(16)
+      .text(`Amount Received: Rs ${Number(payment.amount).toFixed(2)}`, 45, amountTop + 17, {
+        width: 330,
+        align: "center",
+      });
+    doc.fillColor("#111827").fontSize(9)
+      .text("Computer-generated receipt", 35, 535, { align: "center", width: 350 });
+    doc.end();
+  } catch (err) {
+    console.error("getPaymentReceipt error:", err);
+    if (!res.headersSent) res.status(500).json({ message: "Failed to generate receipt" });
+  }
+};
+
 // ── GET /api/fees/students ─────────────────────────────────────────────────────
 const getStudentFeesList = async (req, res) => {
   try {
@@ -629,11 +782,28 @@ const setFeeStructure = async (req, res) => {
       );
     }
 
-    let studentQuery = "SELECT id FROM students WHERE class = $1";
-    const params = [cls];
+    const normalizedClass = String(cls).replace(/^Class\s+/i, "").trim();
+    let studentQuery = `
+      SELECT s.id
+      FROM students s
+      LEFT JOIN classes c ON c.id = s.class_id
+      WHERE (
+        LOWER(TRIM(s.class)) IN (
+          LOWER(TRIM($1)),
+          LOWER(TRIM($2)),
+          LOWER(TRIM(CONCAT('Class ', $2)))
+        )
+        OR LOWER(TRIM(c.grade)) = LOWER(TRIM($2))
+        OR LOWER(TRIM(c.class_name)) IN (
+          LOWER(TRIM($1)),
+          LOWER(TRIM($2)),
+          LOWER(TRIM(CONCAT('Class ', $2)))
+        )
+      )`;
+    const params = [cls, normalizedClass];
     if (section) {
       params.push(section);
-      studentQuery += ` AND section = $${params.length}`;
+      studentQuery += ` AND LOWER(TRIM(s.section)) = LOWER(TRIM($${params.length}))`;
     }
     const students = await client.query(studentQuery, params);
 
@@ -641,44 +811,55 @@ const setFeeStructure = async (req, res) => {
     for (const student of students.rows) {
       // Pehle existing record check karo
       const existing = await client.query(
-        `SELECT paid_amount, status FROM student_fees 
+        `SELECT id, paid_amount, status, transport_fee, hostel_fee, mess_fee
+         FROM student_fees
      WHERE student_id = $1 AND academic_year = $2::varchar`,
         [student.id, ay],
       );
 
       const existingPaid = existing.rows[0]?.paid_amount || 0;
       const existingStatus = existing.rows[0]?.status || "Pending";
-
-      await client.query(
-        `INSERT INTO student_fees
-       (student_id, class, academic_year, tuition_fee, library_fee, other_fee,
-        total_fees, paid_amount, status, due_date)
-     VALUES ($1::int, $2::varchar, $3::varchar, $4::numeric, $5::numeric, $6::numeric,
-             $7::numeric, $8::numeric, $9::varchar, $10::date)
-     ON CONFLICT (student_id, academic_year)
-     DO UPDATE SET 
-       tuition_fee = EXCLUDED.tuition_fee,
-       library_fee = EXCLUDED.library_fee,
-       other_fee   = EXCLUDED.other_fee,
-       total_fees  = EXCLUDED.total_fees
-                   + COALESCE(student_fees.transport_fee, 0)
-                   + COALESCE(student_fees.hostel_fee, 0)
-                   + COALESCE(student_fees.mess_fee, 0),
-       due_date    = EXCLUDED.due_date,
-       updated_at  = NOW()`,
-        [
-          student.id,
-          cls,
-          ay,
-          tuition_fee,
-          library_fee || 0,
-          other_fee || 0,
-          total,
-          existingPaid,
-          existingStatus,
-          due_date || null,
-        ],
-      );
+      const extraFees =
+        Number(existing.rows[0]?.transport_fee || 0) +
+        Number(existing.rows[0]?.hostel_fee || 0) +
+        Number(existing.rows[0]?.mess_fee || 0);
+      if (existing.rows[0]) {
+        await client.query(
+          `UPDATE student_fees
+           SET class=$1, tuition_fee=$2, library_fee=$3, other_fee=$4,
+               total_fees=$5, due_date=$6, updated_at=NOW()
+           WHERE id=$7`,
+          [
+            cls,
+            tuition_fee,
+            library_fee || 0,
+            other_fee || 0,
+            total + extraFees,
+            due_date || null,
+            existing.rows[0].id,
+          ],
+        );
+      } else {
+        await client.query(
+          `INSERT INTO student_fees
+             (student_id, class, academic_year, tuition_fee, library_fee, other_fee,
+              total_fees, paid_amount, status, due_date)
+           VALUES ($1::int, $2::varchar, $3::varchar, $4::numeric, $5::numeric,
+                   $6::numeric, $7::numeric, $8::numeric, $9::varchar, $10::date)`,
+          [
+            student.id,
+            cls,
+            ay,
+            tuition_fee,
+            library_fee || 0,
+            other_fee || 0,
+            total,
+            existingPaid,
+            existingStatus,
+            due_date || null,
+          ],
+        );
+      }
     }
 
     await client.query("COMMIT");
@@ -848,6 +1029,8 @@ module.exports = {
   approvePayment,
   rejectPayment,
   recordCashPayment,
+  updatePayment,
+  getPaymentReceipt,
   getStudentFeesList,
   updateStudentFee,
   setFeeStructure,

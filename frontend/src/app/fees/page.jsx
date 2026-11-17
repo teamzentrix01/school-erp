@@ -27,6 +27,8 @@ import {
   ImageIcon,
   BadgeCheck,
   Ban,
+  Pencil,
+  Printer,
   ChevronRight,
   BarChart3,
   TrendingUp,
@@ -62,9 +64,14 @@ const apiFetch = (path, opts = {}) =>
         : {}),
     },
     ...opts,
-  }).then((r) => {
-    if (!r.ok) throw new Error(`${r.status}`);
-    return r.json();
+  }).then(async (r) => {
+    const payload = await r.json().catch(() => null);
+    if (!r.ok) {
+      const error = new Error(payload?.message || `${r.status}`);
+      error.status = r.status;
+      throw error;
+    }
+    return payload;
   });
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -209,8 +216,8 @@ function ClassFeeForm({ cls, onSaved }) {
       });
       setMsg("✅ Class fees saved & applied to all students.");
       onSaved?.();
-    } catch {
-      setMsg("❌ Failed to save. Please try again.");
+    } catch (error) {
+      setMsg(`❌ ${error.message || "Failed to save. Please try again."}`);
     } finally {
       setSaving(false);
     }
@@ -1261,6 +1268,10 @@ function AllPaymentsTab() {
   const [payments, setPayments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("all");
+  const [editingPayment, setEditingPayment] = useState(null);
+  const [editForm, setEditForm] = useState({ amount: "", paid_on: "", note: "" });
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [error, setError] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -1279,8 +1290,69 @@ function AllPaymentsTab() {
     load();
   }, [load]);
 
+  const printReceipt = async (paymentId) => {
+    const printWindow = window.open("about:blank", "_blank");
+    try {
+      const response = await fetch(
+        `${API_BASE}/api/fees/admin/payments/${paymentId}/receipt`,
+        { headers: { Authorization: `Bearer ${getToken()}` } },
+      );
+      if (!response.ok) throw new Error("Receipt could not be generated");
+      const blobUrl = URL.createObjectURL(await response.blob());
+      if (printWindow) printWindow.location.href = blobUrl;
+      else window.open(blobUrl, "_blank");
+    } catch (err) {
+      printWindow?.close();
+      setError(err.message || "Receipt could not be generated");
+    }
+  };
+
+  const openEdit = (payment) => {
+    setError("");
+    setEditingPayment(payment);
+    setEditForm({
+      amount: String(payment.amount || ""),
+      paid_on: String(payment.paid_on || payment.created_at || "").slice(0, 10),
+      note: payment.note || "",
+    });
+  };
+
+  const saveEdit = async () => {
+    if (!editingPayment || !editForm.amount || Number(editForm.amount) <= 0) {
+      setError("Enter a valid payment amount");
+      return;
+    }
+    setSavingEdit(true);
+    setError("");
+    try {
+      await apiFetch(`/fees/admin/payments/${editingPayment.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          amount: Number(editForm.amount),
+          paid_on: editForm.paid_on || undefined,
+          note: editForm.note,
+        }),
+      });
+      setEditingPayment(null);
+      await load();
+    } catch (err) {
+      setError(
+        err.message === "400"
+          ? "Amount cannot exceed the student's fee balance."
+          : "Payment could not be updated.",
+      );
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
   return (
     <div className="space-y-4">
+      {error && (
+        <div className="px-4 py-3 rounded-lg bg-red-50 text-red-600 text-sm">
+          {error}
+        </div>
+      )}
       <div className="flex gap-2 flex-wrap">
         {[
           { key: "all", label: "All" },
@@ -1407,24 +1479,114 @@ function AllPaymentsTab() {
                         </span>
                       </td>
                       <td className="px-4 py-3">
-                        {p.receipt_url ? (
-                          <a
-                            href={`${API_BASE}${p.receipt_url}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-center gap-1 text-violet-600 hover:underline text-xs font-semibold"
-                          >
-                            <Eye size={12} /> View
-                          </a>
-                        ) : (
-                          <span className="text-xs text-gray-300">—</span>
-                        )}
+                        <div className="flex items-center gap-2">
+                          {p.status === "approved" && (
+                            <button
+                              onClick={() => printReceipt(p.id)}
+                              className="flex items-center gap-1 text-violet-600 hover:underline text-xs font-semibold"
+                              title="Print payment receipt"
+                            >
+                              <Printer size={12} /> Print
+                            </button>
+                          )}
+                          {p.receipt_url && (
+                            <a
+                              href={`${API_BASE}${p.receipt_url}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-1 text-gray-500 hover:underline text-xs font-semibold"
+                            >
+                              <Eye size={12} /> View
+                            </a>
+                          )}
+                          {p.status === "approved" && (
+                            <button
+                              onClick={() => openEdit(p)}
+                              className="flex items-center gap-1 text-amber-600 hover:underline text-xs font-semibold"
+                              title="Edit payment"
+                            >
+                              <Pencil size={12} /> Edit
+                            </button>
+                          )}
+                          {!p.receipt_url && p.status !== "approved" && (
+                            <span className="text-xs text-gray-300">—</span>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );
                 })}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {editingPayment && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-5 space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="font-bold text-gray-900">Edit Saved Payment</h3>
+                <p className="text-xs text-gray-400 mt-1">
+                  {editingPayment.student_name}
+                </p>
+              </div>
+              <button
+                onClick={() => setEditingPayment(null)}
+                className="text-gray-400 hover:text-gray-700"
+              >
+                <XCircle size={18} />
+              </button>
+            </div>
+            <label className="block text-xs font-semibold text-gray-500">
+              Amount
+              <input
+                type="number"
+                min="1"
+                value={editForm.amount}
+                onChange={(event) =>
+                  setEditForm((prev) => ({ ...prev, amount: event.target.value }))
+                }
+                className="mt-1.5 w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm"
+              />
+            </label>
+            <label className="block text-xs font-semibold text-gray-500">
+              Payment date
+              <input
+                type="date"
+                value={editForm.paid_on}
+                onChange={(event) =>
+                  setEditForm((prev) => ({ ...prev, paid_on: event.target.value }))
+                }
+                className="mt-1.5 w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm"
+              />
+            </label>
+            <label className="block text-xs font-semibold text-gray-500">
+              Note
+              <input
+                value={editForm.note}
+                onChange={(event) =>
+                  setEditForm((prev) => ({ ...prev, note: event.target.value }))
+                }
+                className="mt-1.5 w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm"
+              />
+            </label>
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                onClick={() => setEditingPayment(null)}
+                className="px-4 py-2 rounded-xl border border-gray-200 text-sm font-semibold text-gray-600"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={saveEdit}
+                disabled={savingEdit}
+                className="px-4 py-2 rounded-xl bg-violet-600 text-white text-sm font-semibold disabled:opacity-60"
+              >
+                {savingEdit ? "Saving..." : "Save Changes"}
+              </button>
+            </div>
           </div>
         </div>
       )}
