@@ -623,6 +623,8 @@ function AddEditModal({ student, classMeta, onClose, onSave, saving }) {
 
   const handleSave = () => {
     if (!form.name.trim()) return alert("Student name is required.");
+    if (isEdit && !form.studentId.trim())
+      return alert("Student ID is required.");
     if (!form.roll.trim()) return alert("Roll number is required.");
     if (!form.classId) return alert("Please select a class.");
     if (!isEdit && !form.password.trim()) return alert("Password is required.");
@@ -706,7 +708,6 @@ function AddEditModal({ student, classMeta, onClose, onSave, saving }) {
           value={form.studentId}
           onChange={(v) => set("studentId", v)}
           placeholder="e.g. STU-2024-001"
-          disabled={isEdit}
         />
 
         <Field
@@ -1313,6 +1314,7 @@ export default function StudentsPage() {
         if (form.id) {
           // Update existing student
           const updateData = {
+            student_id: form.studentId.trim(),
             class_id: parseInt(form.classId),
             class: form.class,
             section: form.section,

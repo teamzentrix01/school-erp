@@ -21,7 +21,7 @@ import {
 } from "lucide-react";
 
 // Imports ke baad, ROLES array se pehle — file ke top mein add karo:
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+const API_BASE = (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/$/, "");
 
 const ROLES = [
   {

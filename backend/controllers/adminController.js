@@ -256,6 +256,7 @@ const createStudent = async (req, res) => {
 const updateStudent = async (req, res) => {
   const { id } = req.params;
   const {
+    student_id,
     class_id,
     class: className,
     section,
@@ -269,6 +270,9 @@ const updateStudent = async (req, res) => {
   } = req.body;
 
   try {
+    if (!student_id?.trim()) {
+      return res.status(400).json({ message: "Student ID is required" });
+    }
     if (!isValidOptionalPhone(phone)) {
       return res
         .status(400)
@@ -281,30 +285,31 @@ const updateStudent = async (req, res) => {
     }
     const result = await pool.query(
       `UPDATE students SET
-         class_id       = COALESCE($1, class_id),
-         class          = COALESCE($2, class),
-         section        = COALESCE($3, section),
-         class_teacher  = COALESCE($4, class_teacher),
-         phone          = COALESCE($5, phone),
-         address        = COALESCE($6, address),
-         guardian_name  = COALESCE($7, guardian_name),
-         guardian_phone = COALESCE($8, guardian_phone),
-         aadhar_number  = COALESCE($9, aadhar_number),
+         student_id     = $1,
+         class_id       = COALESCE($2, class_id),
+         class          = COALESCE($3, class),
+         section        = COALESCE($4, section),
+         class_teacher  = COALESCE($5, class_teacher),
+         phone          = COALESCE($6, phone),
+         address        = COALESCE($7, address),
+         guardian_name  = COALESCE($8, guardian_name),
+         guardian_phone = COALESCE($9, guardian_phone),
+         aadhar_number  = COALESCE($10, aadhar_number),
          updated_at     = NOW()
-       WHERE id = $10
+       WHERE id = $11
        RETURNING *`,
       [
+        student_id.trim(),
         class_id,
         className,
         section,
         class_teacher,
         normalizeOptionalPhone(phone),
         address,
-        guardian_name,   // ← $7 ✓
+        guardian_name,
         normalizeOptionalPhone(guardian_phone),
-        aadhar_number,   // ← $9 ✓
-        id,              // ← $10 ✓
-        // fee_status is GONE — no $11
+        aadhar_number,
+        id,
       ]
     );
 
@@ -315,6 +320,9 @@ const updateStudent = async (req, res) => {
     res.json(result.rows[0]);
   } catch (err) {
     console.error("updateStudent error:", err);
+    if (err.code === "23505" && err.constraint?.includes("student_id")) {
+      return res.status(409).json({ message: "This Student ID is already taken." });
+    }
     res.status(500).json({ message: "Server error" });
   }
 };

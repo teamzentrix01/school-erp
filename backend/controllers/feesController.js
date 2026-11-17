@@ -522,26 +522,51 @@ const getStudentFeesList = async (req, res) => {
 // ── PATCH /api/fees/students/:id ──────────────────────────────────────────────
 const updateStudentFee = async (req, res) => {
   const { id } = req.params;
-  const { transport_fee } = req.body;
+  const feeKeys = [
+    "tuition_fee",
+    "library_fee",
+    "transport_fee",
+    "hostel_fee",
+    "mess_fee",
+    "other_fee",
+  ];
   try {
     const sf = await pool.query("SELECT * FROM student_fees WHERE id = $1", [
       id,
     ]);
     if (!sf.rows.length) return res.status(404).json({ message: "Not found" });
     const row = sf.rows[0];
-    const newTotal =
-      Number(row.tuition_fee || 0) +
-      Number(row.library_fee || 0) +
-      Number(row.other_fee || 0) +
-      Number(transport_fee || 0) +
-      Number(row.hostel_fee || 0) +
-      Number(row.mess_fee || 0);
+    const values = Object.fromEntries(
+      feeKeys.map((key) => {
+        const value = req.body[key] == null ? row[key] : Number(req.body[key]);
+        if (!Number.isFinite(value) || value < 0) {
+          throw new Error(`${key} must be zero or greater`);
+        }
+        return [key, value];
+      }),
+    );
+    const newTotal = feeKeys.reduce((sum, key) => sum + values[key], 0);
+    const paidAmount = Number(row.paid_amount || 0);
+    const newStatus =
+      paidAmount >= newTotal ? "Paid" : paidAmount > 0 ? "Partial" : "Pending";
 
     const result = await pool.query(
       `UPDATE student_fees
-       SET transport_fee = $1, total_fees = $2, updated_at = NOW()
-       WHERE id = $3 RETURNING *`,
-      [transport_fee, newTotal, id],
+       SET tuition_fee = $1, library_fee = $2, transport_fee = $3,
+           hostel_fee = $4, mess_fee = $5, other_fee = $6,
+           total_fees = $7, status = $8, updated_at = NOW()
+       WHERE id = $9 RETURNING *`,
+      [
+        values.tuition_fee,
+        values.library_fee,
+        values.transport_fee,
+        values.hostel_fee,
+        values.mess_fee,
+        values.other_fee,
+        newTotal,
+        newStatus,
+        id,
+      ],
     );
     res.json(result.rows[0]);
   } catch (err) {

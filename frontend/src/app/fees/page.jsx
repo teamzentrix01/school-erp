@@ -330,19 +330,7 @@ function ClassFeeForm({ cls, onSaved }) {
 }
 
 // ─── Per-Student Transport Row ────────────────────────────────────────────────
-function StudentTransportRow({ student, onUpdate }) {
-  const [transport, setTransport] = useState(
-    String(Number(student.transport_fee || 0)),
-  );
-  const [saving, setSaving] = useState(false);
-  const dirty = String(student.transport_fee || 0) !== transport;
-
-  const handleSave = async () => {
-    setSaving(true);
-    await onUpdate(student.id, Number(transport));
-    setSaving(false);
-  };
-
+function StudentTransportRow({ student, onEdit }) {
   return (
     <tr className="hover:bg-gray-50/60 transition-colors">
       <td className="px-4 py-3">
@@ -364,44 +352,15 @@ function StudentTransportRow({ student, onUpdate }) {
         {student.roll_no || student.roll_number || "—"}
       </td>
       <td className="px-4 py-3">
-        <div className="flex items-center gap-1 text-sm text-gray-700">
-          <IndianRupee size={12} className="text-gray-400" />
+        <div className="text-sm text-gray-700">
+          <IndianRupee size={12} className="inline text-gray-400" />
           {Number(student.tuition_fee || 0).toLocaleString("en-IN")}
         </div>
       </td>
       <td className="px-4 py-3">
         <div className="flex items-center gap-2">
-          <div className="relative w-28">
-            <IndianRupee
-              size={11}
-              className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400"
-            />
-            <input
-              type="number"
-              min="0"
-              value={transport}
-              disabled={!student.fee_configured}
-              onChange={(e) => setTransport(e.target.value)}
-              placeholder="0"
-              className={`w-full pl-6 pr-2 py-1.5 text-xs border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-300 transition-all disabled:bg-gray-100 disabled:text-gray-400 ${
-                dirty ? "border-blue-300 bg-blue-50" : "border-gray-200"
-              }`}
-            />
-          </div>
-          {dirty && student.fee_configured && (
-            <button
-              onClick={handleSave}
-              disabled={saving}
-              className="flex items-center gap-1 text-xs bg-blue-500 hover:bg-blue-600 text-white px-2.5 py-1.5 rounded-lg font-semibold transition-all disabled:opacity-60"
-            >
-              {saving ? (
-                <Loader2 size={11} className="animate-spin" />
-              ) : (
-                <Save size={11} />
-              )}
-              Save
-            </button>
-          )}
+          <IndianRupee size={12} className="text-gray-400" />
+          {Number(student.transport_fee || 0).toLocaleString("en-IN")}
         </div>
       </td>
       <td className="px-4 py-3">
@@ -411,7 +370,7 @@ function StudentTransportRow({ student, onUpdate }) {
             Number(student.tuition_fee || 0) +
             Number(student.library_fee || 0) +
             Number(student.other_fee || 0) +
-            Number(transport || 0) +
+            Number(student.transport_fee || 0) +
             Number(student.hostel_fee || 0) +
             Number(student.mess_fee || 0)
           ).toLocaleString("en-IN")}
@@ -439,9 +398,136 @@ function StudentTransportRow({ student, onUpdate }) {
         </div>
       </td>
       <td className="px-4 py-3">
-        <StatusBadge status={student.status} />
+        <div className="flex items-center gap-2">
+          <StatusBadge status={student.status} />
+          {student.fee_configured && (
+            <button
+              onClick={() => onEdit(student)}
+              className="rounded-lg bg-violet-50 px-2.5 py-1.5 text-xs font-semibold text-violet-700 hover:bg-violet-100"
+            >
+              Edit
+            </button>
+          )}
+        </div>
       </td>
     </tr>
+  );
+}
+
+function StudentFeeEditModal({
+  student,
+  exams,
+  onClose,
+  onSave,
+  saving,
+  onAllowAdmitCard,
+  allowingAdmitCard,
+}) {
+  const [form, setForm] = useState({
+    tuition_fee: String(Number(student.tuition_fee || 0)),
+    library_fee: String(Number(student.library_fee || 0)),
+    transport_fee: String(Number(student.transport_fee || 0)),
+    hostel_fee: String(Number(student.hostel_fee || 0)),
+    mess_fee: String(Number(student.mess_fee || 0)),
+    other_fee: String(Number(student.other_fee || 0)),
+  });
+  const [examId, setExamId] = useState("");
+  const [reason, setReason] = useState("");
+  const set = (key, value) => setForm((current) => ({ ...current, [key]: value }));
+  const fields = [
+    ["tuition_fee", "Tuition Fee"],
+    ["library_fee", "Library Fee"],
+    ["transport_fee", "Transport Fee"],
+    ["hostel_fee", "Hostel Fee"],
+    ["mess_fee", "Mess Fee"],
+    ["other_fee", "Other Fee"],
+  ];
+
+  const submit = () => {
+    const values = Object.fromEntries(
+      fields.map(([key]) => [key, Number(form[key])]),
+    );
+    if (Object.values(values).some((value) => !Number.isFinite(value) || value < 0)) {
+      return;
+    }
+    onSave(student.id, values);
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl">
+        <div className="mb-5 flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-bold text-gray-900">Edit Student Fee</h2>
+            <p className="text-xs text-gray-500">{student.name}</p>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-700">
+            ✕
+          </button>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          {fields.map(([key, label]) => (
+            <label key={key} className="text-xs font-semibold text-gray-500">
+              {label}
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={form[key]}
+                onChange={(event) => set(key, event.target.value)}
+                className="mt-1.5 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-800 outline-none focus:border-violet-400"
+              />
+            </label>
+          ))}
+        </div>
+        <div className="mt-5 flex justify-end gap-2">
+          <button onClick={onClose} className="rounded-lg px-4 py-2 text-sm text-gray-600">
+            Cancel
+          </button>
+          <button
+            onClick={submit}
+            disabled={saving}
+            className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+          >
+            {saving ? "Saving..." : "Save Fee"}
+          </button>
+        </div>
+        <div className="mt-5 border-t border-gray-100 pt-4">
+          <h3 className="text-sm font-bold text-gray-800">
+            Allow Admit Card for This Student
+          </h3>
+          <p className="mt-1 text-xs text-gray-500">
+            This exemption applies only to the selected exam.
+          </p>
+          <select
+            value={examId}
+            onChange={(event) => setExamId(event.target.value)}
+            className="mt-3 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+          >
+            <option value="">Select exam</option>
+            {exams.map((exam) => (
+              <option key={exam.id} value={exam.id}>
+                {exam.name} | {exam.class}
+                {exam.section ? `-${exam.section}` : ""}
+              </option>
+            ))}
+          </select>
+          <input
+            value={reason}
+            onChange={(event) => setReason(event.target.value)}
+            placeholder="Reason for concession / approval"
+            className="mt-2 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+          />
+          <button
+            onClick={() => onAllowAdmitCard(student, examId, reason)}
+            disabled={allowingAdmitCard || !examId || !reason.trim()}
+            className="mt-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+          >
+            {allowingAdmitCard ? "Allowing..." : "Allow Admit Card"}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -1602,6 +1688,10 @@ export default function AdminFeesPage() {
   const [filterStatus, setFilterStatus] = useState("All");
   const [showFeeForm, setShowFeeForm] = useState(false);
   const [showCashModal, setShowCashModal] = useState(false);
+  const [editingFee, setEditingFee] = useState(null);
+  const [savingFee, setSavingFee] = useState(false);
+  const [exams, setExams] = useState([]);
+  const [allowingAdmitCard, setAllowingAdmitCard] = useState(false);
   const [toast, setToast] = useState({ msg: "", type: "success" });
   const [pendingCount, setPendingCount] = useState(0);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -1635,6 +1725,12 @@ export default function AdminFeesPage() {
     loadPendingCount();
   }, [loadPendingCount, refreshKey]);
 
+  useEffect(() => {
+    apiFetch("/admin/results/exams")
+      .then((data) => setExams(data || []))
+      .catch(() => setExams([]));
+  }, []);
+
   const activeClass = classes[activeClassIdx] || null;
 
   const loadStudents = useCallback(async () => {
@@ -1663,32 +1759,55 @@ export default function AdminFeesPage() {
     loadStudents();
   }, [loadStudents]);
 
-  const handleTransportUpdate = async (studentFeeId, transportFee) => {
+  const handleFeeUpdate = async (studentFeeId, fees) => {
+    setSavingFee(true);
     try {
       await apiFetch(`/fees/students/${studentFeeId}`, {
         method: "PATCH",
-        body: JSON.stringify({ transport_fee: transportFee }),
+        body: JSON.stringify(fees),
       });
+      const totalFees = Object.values(fees).reduce((sum, value) => sum + Number(value || 0), 0);
       setStudents((prev) =>
         prev.map((s) =>
           s.id === studentFeeId
             ? {
                 ...s,
-                transport_fee: transportFee,
-                total_fees:
-                  Number(s.tuition_fee || 0) +
-                  Number(s.library_fee || 0) +
-                  Number(s.other_fee || 0) +
-                  Number(s.hostel_fee || 0) +
-                  Number(s.mess_fee || 0) +
-                  transportFee,
+                ...fees,
+                total_fees: totalFees,
+                status:
+                  Number(s.paid_amount || 0) >= totalFees
+                    ? "Paid"
+                    : Number(s.paid_amount || 0) > 0
+                      ? "Partial"
+                      : "Pending",
               }
             : s,
         ),
       );
-      setToast({ msg: "Transport fee updated!", type: "success" });
+      setEditingFee(null);
+      setToast({ msg: "Student fee updated!", type: "success" });
     } catch {
-      setToast({ msg: "Failed to update transport fee.", type: "error" });
+      setToast({ msg: "Failed to update student fee.", type: "error" });
+    } finally {
+      setSavingFee(false);
+    }
+  };
+
+  const handleAllowAdmitCard = async (student, examId, reason) => {
+    setAllowingAdmitCard(true);
+    try {
+      await apiFetch(
+        `/admin/results/exams/${examId}/fee-clearance/${student.student_id}/override`,
+        {
+          method: "PUT",
+          body: JSON.stringify({ allowed: true, reason: reason.trim() }),
+        },
+      );
+      setToast({ msg: "Admit card allowed for this student.", type: "success" });
+    } catch (error) {
+      setToast({ msg: error.message || "Failed to allow admit card.", type: "error" });
+    } finally {
+      setAllowingAdmitCard(false);
     }
   };
 
@@ -2037,7 +2156,7 @@ export default function AdminFeesPage() {
                               <StudentTransportRow
                                 key={s.id}
                                 student={s}
-                                onUpdate={handleTransportUpdate}
+                                onEdit={setEditingFee}
                               />
                             ))
                           ) : (
@@ -2074,6 +2193,17 @@ export default function AdminFeesPage() {
         type={toast.type}
         onDismiss={() => setToast({ msg: "", type: "success" })}
       />
+      {editingFee && (
+        <StudentFeeEditModal
+          student={editingFee}
+          exams={exams}
+          onClose={() => setEditingFee(null)}
+          onSave={handleFeeUpdate}
+          saving={savingFee}
+          onAllowAdmitCard={handleAllowAdmitCard}
+          allowingAdmitCard={allowingAdmitCard}
+        />
+      )}
     </div>
   );
 }

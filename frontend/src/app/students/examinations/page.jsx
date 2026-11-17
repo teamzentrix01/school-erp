@@ -11,6 +11,9 @@ import {
 } from "lucide-react";
 import StudentSidebar from "@/components/StudentSidebar";
 import { apiFetch, getMediaUrl } from "@/lib/api";
+
+const SCHOOL_NAME =
+  "PREM SINGH SWATANTRATA SENANI INTER COLLEGE BHATIYANA KHUSHALUR";
 import QRCode from "qrcode";
 
 export default function StudentExaminationsPage() {
@@ -220,7 +223,7 @@ export default function StudentExaminationsPage() {
                 </div>
                 <div className="flex-1 text-center">
                   <p className="text-xl font-bold text-blue-950">{process.env.NEXT_PUBLIC_SCHOOL_NAME_HI || "विद्यालय का नाम"}</p>
-                  <h2 className="text-2xl font-extrabold uppercase tracking-wide text-blue-900">{process.env.NEXT_PUBLIC_SCHOOL_NAME || "EduERP School"}</h2>
+                  <h2 className="text-2xl font-extrabold uppercase tracking-wide text-blue-900">{SCHOOL_NAME}</h2>
                   <p className="text-xs text-slate-600">{process.env.NEXT_PUBLIC_SCHOOL_ADDRESS || "School Address"}</p>
                   <p className="text-[11px] font-semibold">UDISE / Affiliation No.: {process.env.NEXT_PUBLIC_SCHOOL_CODE || "-"}</p>
                 </div>

@@ -23,6 +23,9 @@ import {
 } from "@/components/ActionFeedback";
 import { apiFetch, getMediaUrl } from "@/lib/api";
 
+const SCHOOL_NAME =
+  "PREM SINGH SWATANTRATA SENANI INTER COLLEGE BHATIYANA KHUSHALUR";
+
 const emptySchedule = {
   exam_id: "",
   subject: "",
@@ -873,7 +876,7 @@ function CardsModal({ cards, onClose }) {
           {cards.map((card) => (
             <div key={card.id} className="bg-white p-6 shadow">
               <div className="border-b pb-4 text-center">
-                <h2 className="text-xl font-bold">EduERP College</h2>
+                <h2 className="text-xl font-bold">{SCHOOL_NAME}</h2>
                 <p className="text-sm">{card.exam_name} Admit Card</p>
               </div>
               <div className="grid grid-cols-2 gap-3 py-4 text-sm">

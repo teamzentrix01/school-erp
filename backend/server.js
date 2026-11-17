@@ -32,10 +32,25 @@ const legacyFeeRoutes = require("./routes/legacyFeeRoutes");
 const { requestValidation } = require("./middleware/requestValidation");
 
 const app = express();
+const configuredClientOrigins = (process.env.CLIENT_URL || "")
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+const allowedClientOrigins = new Set([
+  ...configuredClientOrigins,
+  "http://localhost:3000",
+  "http://localhost:3001",
+  "http://localhost:3002",
+]);
 
 app.use(
   cors({
-    origin: process.env.CLIENT_URL || "http://localhost:3000",
+    origin: (origin, callback) => {
+      if (!origin || allowedClientOrigins.has(origin)) {
+        return callback(null, true);
+      }
+      return callback(new Error("Origin is not allowed by CORS"));
+    },
     credentials: true,
   }),
 );

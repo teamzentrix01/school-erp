@@ -13,6 +13,26 @@ export default function PwaManager() {
 
   useEffect(() => {
     if ("serviceWorker" in navigator) {
+      if (window.location.hostname === "localhost") {
+        Promise.all([
+          navigator.serviceWorker
+            .getRegistrations()
+            .then((registrations) =>
+              Promise.all(
+                registrations.map((registration) => registration.unregister()),
+              ),
+            ),
+          "caches" in window
+            ? caches
+                .keys()
+                .then((keys) => Promise.all(keys.map((key) => caches.delete(key))))
+            : Promise.resolve(),
+        ])
+          .catch((error) =>
+            console.error("Local service worker cleanup failed:", error),
+          );
+        return;
+      }
       navigator.serviceWorker.register("/sw.js").catch((error) =>
         console.error("Service worker registration failed:", error),
       );
