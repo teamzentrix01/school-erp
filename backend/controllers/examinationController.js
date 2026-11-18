@@ -595,8 +595,17 @@ const getStudentExaminations = async (req, res) => {
       ),
       pool.query(
         `SELECT ac.*,e.name AS exam_name,e.exam_type,e.academic_year,
-                e.start_date,e.end_date
+                e.start_date,e.end_date,es.schedule
          FROM admit_cards ac JOIN exams e ON e.id=ac.exam_id
+         LEFT JOIN LATERAL (
+           SELECT JSON_AGG(JSON_BUILD_OBJECT(
+             'id',es.id,'subject',es.subject,'exam_date',es.exam_date,
+             'start_time',es.start_time,'end_time',es.end_time,'room',es.room,
+             'instructions',es.instructions
+           ) ORDER BY es.exam_date,es.start_time) AS schedule
+           FROM exam_schedule es
+           WHERE es.exam_id=e.id AND es.published=TRUE
+         ) es ON TRUE
          WHERE ac.student_id=$1 AND ac.published=TRUE
          ORDER BY e.start_date DESC`,
         [student.id],

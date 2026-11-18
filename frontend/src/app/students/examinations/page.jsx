@@ -219,11 +219,7 @@ export default function StudentExaminationsPage() {
               <AdmitCardSheet
                 card={printCard}
                 student={data.student}
-                schedule={data.schedule.filter(
-                  (item) =>
-                    Number(item.exam_id) === Number(printCard.exam_id) ||
-                    item.exam_name === printCard.exam_name,
-                )}
+                schedule={printCard.schedule || []}
                 verificationQr={verificationQr}
               />
             </div>

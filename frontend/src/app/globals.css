@@ -113,8 +113,11 @@
   .admit-card-sheet {
     break-inside: avoid;
     page-break-inside: avoid;
-    page-break-after: always;
     min-height: 250mm;
+  }
+
+  .admit-card-sheet + .admit-card-sheet {
+    page-break-before: always;
   }
 }
 
