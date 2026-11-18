@@ -628,6 +628,8 @@ function AddEditModal({ student, classMeta, onClose, onSave, saving }) {
     if (!form.roll.trim()) return alert("Roll number is required.");
     if (!form.classId) return alert("Please select a class.");
     if (!isEdit && !form.password.trim()) return alert("Password is required.");
+    if (form.password && form.password.length < 6)
+      return alert("Password must be at least 6 characters.");
     if (!isValidDateValue(form.dob))
       return alert("Date of birth must use a valid 4-digit year.");
     if (form.phone && !/^\d{10}$/.test(cleanPhone(form.phone)))
@@ -724,24 +726,24 @@ function AddEditModal({ student, classMeta, onClose, onSave, saving }) {
           placeholder="e.g. 42"
         />
 
-        {!isEdit && (
-          <>
-            <Field
-              label="Email (Optional)"
-              value={form.email}
-              onChange={(v) => set("email", v)}
-              placeholder="student@school.edu"
-              type="email"
-            />
-            <Field
-              label="Password *"
-              value={form.password}
-              onChange={(v) => set("password", v)}
-              placeholder="Min 6 characters"
-              type="password"
-            />
-          </>
-        )}
+        <Field
+          label="Email (Optional)"
+          value={form.email}
+          onChange={(v) => set("email", v)}
+          placeholder="student@school.edu"
+          type="email"
+        />
+        <Field
+          label={isEdit ? "New Password (leave blank to keep)" : "Password *"}
+          value={form.password}
+          onChange={(v) => set("password", v)}
+          placeholder={
+            isEdit
+              ? "Leave blank to keep current password"
+              : "Min 6 characters"
+          }
+          type="password"
+        />
 
         <div className="sm:col-span-2">
           <label className="field-label">Class *</label>
@@ -771,9 +773,9 @@ function AddEditModal({ student, classMeta, onClose, onSave, saving }) {
           <input
             type="text"
             value={form.class || ""}
-            readOnly
-            placeholder="Auto-filled"
-            className="field-input bg-gray-50 text-gray-500 cursor-not-allowed"
+            onChange={(e) => set("class", e.target.value)}
+            placeholder="Enter grade/class"
+            className="field-input"
           />
         </div>
         <div>
@@ -781,9 +783,9 @@ function AddEditModal({ student, classMeta, onClose, onSave, saving }) {
           <input
             type="text"
             value={form.section}
-            readOnly
-            placeholder="Auto-filled"
-            className="field-input bg-gray-50 text-gray-500 cursor-not-allowed"
+            onChange={(e) => set("section", e.target.value)}
+            placeholder="Enter section"
+            className="field-input"
           />
         </div>
         <div className="sm:col-span-2">
@@ -791,9 +793,9 @@ function AddEditModal({ student, classMeta, onClose, onSave, saving }) {
           <input
             type="text"
             value={form.classTeacher}
-            readOnly
-            placeholder="Auto-filled"
-            className="field-input bg-gray-50 text-gray-500 cursor-not-allowed"
+            onChange={(e) => set("classTeacher", e.target.value)}
+            placeholder="Enter class teacher"
+            className="field-input"
           />
         </div>
 
@@ -1314,16 +1316,24 @@ export default function StudentsPage() {
         if (form.id) {
           // Update existing student
           const updateData = {
+            name: form.name,
+            email: form.email || null,
+            password: form.password || undefined,
+            roll_number: form.roll,
             student_id: form.studentId.trim(),
             class_id: parseInt(form.classId),
             class: form.class,
             section: form.section,
             class_teacher: form.classTeacher,
+            date_of_birth: form.dob || null,
+            gender: form.gender || null,
             phone: form.phone,
             address: form.address,
             guardian_name: form.parentName,
             guardian_phone: form.parentContact,
             aadhar_number: form.aadharNumber.replace(/\s/g, "") || null,
+            fee_status: form.fee || "Pending",
+            is_active: form.isActive,
           };
           result = await api.update(form.id, updateData);
           savedId = form.id;

@@ -256,47 +256,103 @@ const createStudent = async (req, res) => {
 const updateStudent = async (req, res) => {
   const { id } = req.params;
   const {
+    name,
+    email,
+    password,
+    roll_number,
     student_id,
     class_id,
     class: className,
     section,
     class_teacher,
+    date_of_birth,
+    gender,
     phone,
     address,
     guardian_name,
     guardian_phone,
     aadhar_number,   // ← keep
-    // fee_status,   // ← REMOVE from destructure or just don't pass it below
+    fee_status,
+    is_active,
   } = req.body;
 
+  const client = await pool.connect();
   try {
+    await client.query("BEGIN");
+    if (!name?.trim()) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({ message: "Student name is required" });
+    }
+    if (!roll_number?.trim()) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({ message: "Roll number is required" });
+    }
+    if (!isValidDateString(date_of_birth)) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({ message: "Date of birth must use a valid YYYY-MM-DD date" });
+    }
     if (!student_id?.trim()) {
+      await client.query("ROLLBACK");
       return res.status(400).json({ message: "Student ID is required" });
     }
     if (!isValidOptionalPhone(phone)) {
+      await client.query("ROLLBACK");
       return res
         .status(400)
         .json({ message: "Student phone must be exactly 10 digits" });
     }
     if (!isValidOptionalPhone(guardian_phone)) {
+      await client.query("ROLLBACK");
       return res
         .status(400)
         .json({ message: "Guardian phone must be exactly 10 digits" });
     }
-    const result = await pool.query(
+    if (password && password.length < 6) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({ message: "Password must be at least 6 characters" });
+    }
+
+    const studentUser = await client.query(
+      "SELECT user_id FROM students WHERE id=$1",
+      [id],
+    );
+    if (!studentUser.rows.length) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ message: "Student not found" });
+    }
+
+    const passwordHash = password ? await bcrypt.hash(password, 10) : null;
+    if (passwordHash) {
+      await client.query(
+        "UPDATE users SET name=$1,email=$2,password=$3,updated_at=NOW() WHERE id=$4",
+        [name.trim(), email?.trim() || null, passwordHash, studentUser.rows[0].user_id],
+      );
+    } else {
+      await client.query(
+        "UPDATE users SET name=$1,email=$2,updated_at=NOW() WHERE id=$3",
+        [name.trim(), email?.trim() || null, studentUser.rows[0].user_id],
+      );
+    }
+
+    const result = await client.query(
       `UPDATE students SET
          student_id     = $1,
          class_id       = COALESCE($2, class_id),
          class          = COALESCE($3, class),
          section        = COALESCE($4, section),
          class_teacher  = COALESCE($5, class_teacher),
-         phone          = COALESCE($6, phone),
-         address        = COALESCE($7, address),
-         guardian_name  = COALESCE($8, guardian_name),
-         guardian_phone = COALESCE($9, guardian_phone),
-         aadhar_number  = COALESCE($10, aadhar_number),
+         roll_number    = $6,
+         date_of_birth  = $7,
+         gender         = $8,
+         phone          = COALESCE($9, phone),
+         address        = COALESCE($10, address),
+         guardian_name  = COALESCE($11, guardian_name),
+         guardian_phone = COALESCE($12, guardian_phone),
+         aadhar_number  = COALESCE($13, aadhar_number),
+         fee_status     = COALESCE($14, fee_status),
+         is_active      = COALESCE($15, is_active),
          updated_at     = NOW()
-       WHERE id = $11
+       WHERE id = $16
        RETURNING *`,
       [
         student_id.trim(),
@@ -304,26 +360,39 @@ const updateStudent = async (req, res) => {
         className,
         section,
         class_teacher,
+        roll_number.trim(),
+        date_of_birth || null,
+        gender || null,
         normalizeOptionalPhone(phone),
         address,
         guardian_name,
         normalizeOptionalPhone(guardian_phone),
         aadhar_number,
+        fee_status,
+        is_active,
         id,
       ]
     );
 
     if (result.rows.length === 0) {
+      await client.query("ROLLBACK");
       return res.status(404).json({ message: "Student not found" });
     }
 
+    await client.query("COMMIT");
     res.json(result.rows[0]);
   } catch (err) {
+    await client.query("ROLLBACK");
     console.error("updateStudent error:", err);
     if (err.code === "23505" && err.constraint?.includes("student_id")) {
       return res.status(409).json({ message: "This Student ID is already taken." });
     }
+    if (err.code === "23505") {
+      return res.status(409).json({ message: "Duplicate value: student ID, roll number, or email already exists." });
+    }
     res.status(500).json({ message: "Server error" });
+  } finally {
+    client.release();
   }
 };
 
