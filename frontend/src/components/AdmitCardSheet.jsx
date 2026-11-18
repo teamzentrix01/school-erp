@@ -23,9 +23,12 @@ export default function AdmitCardSheet({
   status,
 }) {
   const profile = student || card;
-  const subjects = Array.isArray(schedule)
-    ? schedule.filter((item) => item && item.subject)
-    : [];
+  const scheduleSource = Array.isArray(schedule)
+    ? schedule
+    : Array.isArray(card?.schedule)
+      ? card.schedule
+      : [];
+  const subjects = scheduleSource.filter((item) => item && item.subject);
   const classLabel = `${profile.class || "-"}${
     profile.section ? `-${profile.section}` : ""
   }`;
