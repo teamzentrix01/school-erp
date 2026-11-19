@@ -107,7 +107,6 @@
 
   #marksheet-print,
   #student-result-print,
-  #admit-cards-print,
   #student-admit-card-print {
     position: absolute;
     inset: 0;
@@ -115,15 +114,34 @@
     border: 0;
   }
 
+  #admit-cards-print {
+    position: static !important;
+    inset: auto;
+    width: 190mm;
+    max-width: 190mm;
+    margin: 0 auto;
+    overflow: visible;
+  }
+
   .admit-card-sheet {
     break-inside: avoid;
     page-break-inside: avoid;
     width: 190mm;
-    min-height: 270mm;
+    min-height: 277mm;
     margin: 0 auto;
-    padding: 12mm;
+    padding: 8mm;
     box-sizing: border-box;
     font-size: 12px;
+    page-break-before: always;
+  }
+
+  #admit-cards-print .admit-card-sheet:first-child,
+  #student-admit-card-print .admit-card-sheet:first-child {
+    page-break-before: auto;
+  }
+
+  .admit-card-sheet:last-child {
+    page-break-after: auto;
   }
 
   .admit-card-sheet + .admit-card-sheet {

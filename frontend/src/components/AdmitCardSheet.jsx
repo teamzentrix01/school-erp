@@ -1,4 +1,6 @@
 import { getMediaUrl } from "@/lib/api";
+import { useEffect, useState } from "react";
+import QRCode from "qrcode";
 
 const SCHOOL_NAME =
   "PREM SINGH SWATANTRATA SENANI INTER COLLEGE BHATIYANA KHUSHALUR, BIJNOR";
@@ -23,6 +25,24 @@ export default function AdmitCardSheet({
   status,
 }) {
   const profile = student || card;
+  const [generatedQr, setGeneratedQr] = useState("");
+  useEffect(() => {
+    if (!card?.card_number) return;
+    let active = true;
+    QRCode.toDataURL(`EDUERP-ADMIT-CARD:${card.card_number}`, {
+      width: 180,
+      margin: 1,
+    })
+      .then((value) => {
+        if (active) setGeneratedQr(value);
+      })
+      .catch(() => {
+        if (active) setGeneratedQr("");
+      });
+    return () => {
+      active = false;
+    };
+  }, [card?.card_number]);
   const scheduleSource = Array.isArray(schedule)
     ? schedule
     : Array.isArray(card?.schedule)
@@ -34,41 +54,51 @@ export default function AdmitCardSheet({
   }`;
 
   return (
-    <article className="admit-card-sheet bg-white p-5 text-slate-900 shadow print:shadow-none">
-      <header className="border-2 border-slate-800 px-3 py-3 text-center">
-        <p className="text-[11px] font-semibold uppercase tracking-wide">
-          प्रवेश पत्र / ADMIT CARD
-        </p>
-        <h1 className="mt-1 text-lg font-extrabold uppercase leading-tight">
+    <article className="admit-card-sheet border-[3px] border-double border-slate-900 bg-white text-slate-900 shadow print:shadow-none">
+      <header className="border-b-2 border-slate-900 px-3 py-2 text-center">
+        <p className="text-[10px] font-semibold">प्रवेश पत्र / ADMIT CARD</p>
+        <h1 className="mt-1 text-base font-extrabold uppercase leading-tight">
           {SCHOOL_NAME}
         </h1>
-        <p className="mt-1 text-sm font-semibold">
-          {card.exam_name || "Examination"}{" "}
-          {card.academic_year ? `· ${card.academic_year}` : ""}
+        <p className="mt-1 text-xs font-semibold">
+          {card.exam_name || "Examination"}
+          {card.academic_year ? ` · Academic Year ${card.academic_year}` : ""}
         </p>
       </header>
 
-      <div className="mt-3 grid grid-cols-[1fr_92px] gap-3 border-2 border-t-0 border-slate-800 p-3 text-xs">
-        <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+      <div className="grid grid-cols-[1fr_88px] border-b border-slate-700 p-3 text-[11px]">
+        <div className="grid grid-cols-2 gap-x-3 gap-y-2 pr-3">
           <p>
-            <strong>Student Name:</strong> {profile.name || profile.student_name || "-"}
+            <strong>छात्र का नाम / Student:</strong><br />
+            {profile.name || profile.student_name || "-"}
           </p>
           <p>
-            <strong>Roll No.:</strong> {profile.roll_number || "-"}
+            <strong>अनुक्रमांक / Roll No.:</strong><br />
+            {profile.roll_number || "-"}
           </p>
           <p>
-            <strong>Class:</strong> {classLabel}
+            <strong>प्रवेश संख्या / Admission No.:</strong><br />
+            {profile.student_id || card.student_id || "-"}
           </p>
           <p>
-            <strong>Card No.:</strong> {card.card_number || "-"}
+            <strong>कक्षा / Class:</strong><br />
+            {classLabel}
           </p>
-          {profile.student_id && (
-            <p>
-              <strong>Admission No.:</strong> {profile.student_id}
-            </p>
-          )}
+          <p>
+            <strong>पिता का नाम / Father:</strong><br />
+            {profile.guardian_name || "-"}
+          </p>
+          <p>
+            <strong>जन्म तिथि / DOB:</strong><br />
+            {profile.date_of_birth
+              ? dateLabel(profile.date_of_birth)
+              : "-"}
+          </p>
+          <p className="col-span-2">
+            <strong>Admit Card No.:</strong> {card.card_number || "-"}
+          </p>
           {status && (
-            <p>
+            <p className="col-span-2">
               <strong>Status:</strong>{" "}
               <span className={status === "Released" ? "text-emerald-700" : "text-amber-700"}>
                 {status}
@@ -91,7 +121,7 @@ export default function AdmitCardSheet({
         </div>
       </div>
 
-      <table className="mt-3 w-full border-collapse text-xs">
+      <table className="mt-3 w-full border-collapse text-[11px]">
         <thead className="bg-slate-800 text-white">
           <tr>
             <th className="border border-slate-800 p-2 text-left">Subject</th>
@@ -135,13 +165,13 @@ export default function AdmitCardSheet({
         scheduled time. Electronic devices are not allowed.
       </div>
 
-      <div className="mt-8 grid grid-cols-4 items-end gap-3 text-center text-[10px] font-semibold">
+      <div className="mt-5 grid grid-cols-4 items-end gap-3 text-center text-[10px] font-semibold">
         <p>Student Signature</p>
         <p>Class Teacher</p>
         <p>Principal</p>
-        {verificationQr ? (
+        {(verificationQr || generatedQr) ? (
           <div>
-            <img src={verificationQr} alt="Admit card verification QR" className="mx-auto h-16 w-16" />
+            <img src={verificationQr || generatedQr} alt="Admit card verification QR" className="mx-auto h-16 w-16" />
             <p>Verification QR</p>
           </div>
         ) : (

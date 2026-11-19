@@ -454,7 +454,7 @@ const getTeacherAdmitCards = async (req, res) => {
     const result = await pool.query(
       `SELECT ac.*,e.name AS exam_name,e.exam_type,e.academic_year,e.class,e.section,
               e.start_date,e.end_date,u.name AS student_name,s.roll_number,
-              s.photo_url,es.schedule
+              s.photo_url,s.student_id,s.guardian_name,s.date_of_birth,es.schedule
          FROM teachers t
          JOIN exams e ON TRUE
          LEFT JOIN classes c ON c.id=e.class_id
@@ -515,7 +515,7 @@ const getAdmitCards = async (req, res) => {
     const result = await pool.query(
       `SELECT ac.*,e.name AS exam_name,e.exam_type,e.academic_year,e.class,e.section,
               e.start_date,e.end_date,u.name AS student_name,s.roll_number,
-              s.photo_url,es.schedule
+              s.photo_url,s.student_id,s.guardian_name,s.date_of_birth,es.schedule
        FROM admit_cards ac
        JOIN exams e ON e.id=ac.exam_id
        JOIN students s ON s.id=ac.student_id

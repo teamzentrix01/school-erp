@@ -861,7 +861,7 @@ function CardsModal({ cards, onClose }) {
             onClick={() => window.print()}
             className="flex items-center gap-2 rounded-lg bg-orange-600 px-4 py-2 text-sm font-semibold text-white"
           >
-            <Printer size={15} /> Print All
+            <Printer size={15} /> Print All ({cards.length})
           </button>
           <button
             onClick={onClose}
