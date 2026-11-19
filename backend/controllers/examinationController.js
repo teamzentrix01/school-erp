@@ -485,6 +485,17 @@ const getTeacherAdmitCards = async (req, res) => {
                     OR LOWER(TRIM(scheduled_exam.section))=LOWER(TRIM(e.section))
                   )
                 )
+                AND (
+                  NOT EXISTS (
+                    SELECT 1 FROM student_subjects ss0
+                    WHERE ss0.student_id=s.id
+                  )
+                  OR EXISTS (
+                    SELECT 1 FROM student_subjects ss
+                    WHERE ss.student_id=s.id
+                      AND LOWER(TRIM(ss.subject))=LOWER(TRIM(es.subject))
+                  )
+                )
               )
          ) es ON TRUE
         WHERE t.user_id=$1
@@ -530,6 +541,16 @@ const getAdmitCards = async (req, res) => {
                 OR scheduled_exam.section IS NULL
                 OR LOWER(TRIM(scheduled_exam.section))=LOWER(TRIM(e.section))
               )
+            )
+          )
+          AND (
+            NOT EXISTS (
+              SELECT 1 FROM student_subjects ss0 WHERE ss0.student_id=s.id
+            )
+            OR EXISTS (
+              SELECT 1 FROM student_subjects ss
+              WHERE ss.student_id=s.id
+                AND LOWER(TRIM(ss.subject))=LOWER(TRIM(es.subject))
             )
           )
        ) es ON TRUE
@@ -579,8 +600,16 @@ const getStudentExaminations = async (req, res) => {
          WHERE ${classMatchSql}
            AND (e.section IS NULL OR LOWER(TRIM(e.section))=LOWER(TRIM($2)))
            AND es.published=TRUE
+           AND (
+             NOT EXISTS (SELECT 1 FROM student_subjects ss0 WHERE ss0.student_id=$6)
+             OR EXISTS (
+               SELECT 1 FROM student_subjects ss
+               WHERE ss.student_id=$6
+                 AND LOWER(TRIM(ss.subject))=LOWER(TRIM(es.subject))
+             )
+           )
          ORDER BY es.exam_date,es.start_time`,
-        [...examParams, student.class_id || null],
+        [...examParams, student.class_id || null, student.id],
       ),
       pool.query(
         `SELECT qp.id,qp.exam_id,qp.subject,qp.title,qp.file_url,qp.release_at,
@@ -605,6 +634,14 @@ const getStudentExaminations = async (req, res) => {
            ) ORDER BY es.exam_date,es.start_time) AS schedule
            FROM exam_schedule es
            WHERE es.exam_id=e.id AND es.published=TRUE
+             AND (
+               NOT EXISTS (SELECT 1 FROM student_subjects ss0 WHERE ss0.student_id=ac.student_id)
+               OR EXISTS (
+                 SELECT 1 FROM student_subjects ss
+                 WHERE ss.student_id=ac.student_id
+                   AND LOWER(TRIM(ss.subject))=LOWER(TRIM(es.subject))
+               )
+             )
          ) es ON TRUE
          WHERE ac.student_id=$1 AND ac.published=TRUE
          ORDER BY e.start_date DESC`,

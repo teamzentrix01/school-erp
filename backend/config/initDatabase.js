@@ -276,6 +276,17 @@ async function initDatabase() {
     END $$;
     ALTER TABLE students ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE;
 
+    CREATE TABLE IF NOT EXISTS student_subjects (
+      id SERIAL PRIMARY KEY,
+      student_id INTEGER NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+      subject VARCHAR(120) NOT NULL,
+      stream VARCHAR(80),
+      created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+      UNIQUE(student_id, subject)
+    );
+    CREATE INDEX IF NOT EXISTS idx_student_subjects_student ON student_subjects(student_id);
+
     CREATE TABLE IF NOT EXISTS library_books (
       id SERIAL PRIMARY KEY,
       accession_number VARCHAR(50) UNIQUE NOT NULL,

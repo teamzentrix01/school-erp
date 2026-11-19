@@ -94,6 +94,27 @@ const isValidOptionalPhone = (value) =>
 
 const normalizeOptionalPhone = (value) => (value ? normalizePhone(value) : null);
 
+const normalizeSubjects = (subjects) =>
+  [...new Set(
+    (Array.isArray(subjects) ? subjects : [])
+      .map((subject) => String(subject || "").trim())
+      .filter(Boolean),
+  )];
+
+const syncStudentSubjects = async (client, studentId, subjects, stream = null) => {
+  const normalized = normalizeSubjects(subjects);
+  await client.query("DELETE FROM student_subjects WHERE student_id=$1", [studentId]);
+  for (const subject of normalized) {
+    await client.query(
+      `INSERT INTO student_subjects (student_id, subject, stream)
+       VALUES ($1,$2,$3)
+       ON CONFLICT (student_id, subject) DO UPDATE
+       SET stream=EXCLUDED.stream, updated_at=NOW()`,
+      [studentId, subject, stream],
+    );
+  }
+};
+
 const isValidDateString = (value) => {
   if (!value) return true;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
@@ -113,6 +134,7 @@ const getAllStudents = async (req, res) => {
          u.email,
          u.is_active,
          ct.name AS class_teacher,
+         COALESCE(ss.subjects, '[]'::json) AS subjects,
          (
            SELECT ROUND(
              COUNT(*) FILTER (WHERE a.status = 'Present') * 100.0
@@ -126,6 +148,11 @@ const getAllStudents = async (req, res) => {
        LEFT JOIN classes c   ON s.class_id  = c.id
        LEFT JOIN teachers t  ON c.teacher_id = t.id
        LEFT JOIN users   ct  ON t.user_id    = ct.id
+         LEFT JOIN LATERAL (
+           SELECT JSON_AGG(subject ORDER BY subject) AS subjects
+           FROM student_subjects
+           WHERE student_id=s.id
+         ) ss ON TRUE
        ORDER BY s.created_at DESC`
     );
     res.json(result.rows);
@@ -153,7 +180,9 @@ const createStudent = async (req, res) => {
     phone,
     guardian_name,
     guardian_phone,
-    aadhar_number,  
+    aadhar_number,
+    subjects,
+    stream,
   } = req.body;
 
  console.log("🔍 req.body received:", JSON.stringify(req.body, null, 2));
@@ -225,6 +254,13 @@ const createStudent = async (req, res) => {
   ]
 );
 
+    await syncStudentSubjects(
+      client,
+      studentResult.rows[0].id,
+      subjects,
+      stream,
+    );
+
     await client.query("COMMIT");
 
     res.status(201).json({
@@ -274,6 +310,8 @@ const updateStudent = async (req, res) => {
     aadhar_number,   // ← keep
     fee_status,
     is_active,
+    subjects,
+    stream,
   } = req.body;
 
   const client = await pool.connect();
@@ -379,6 +417,7 @@ const updateStudent = async (req, res) => {
       return res.status(404).json({ message: "Student not found" });
     }
 
+    await syncStudentSubjects(client, result.rows[0].id, subjects, stream);
     await client.query("COMMIT");
     res.json(result.rows[0]);
   } catch (err) {

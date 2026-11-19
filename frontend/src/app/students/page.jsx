@@ -71,6 +71,10 @@ function normalizeStudent(s) {
     classId: s.class_id ? String(s.class_id) : "",
     aadharNumber: s.aadhar_number || "",
     aadharImageUrl: getMediaUrl(s.aadhar_image_url), // ← wrapped
+    subjects: Array.isArray(s.subjects)
+      ? s.subjects
+      : [],
+    stream: s.stream || "",
   };
 }
 
@@ -477,6 +481,8 @@ const EMPTY_FORM = {
   parentContact: "",
   aadharNumber: "",
   aadharImageUrl: "",
+  subjects: [],
+  stream: "",
 };
 
 const STUDENT_DOCUMENT_TYPES = [
@@ -797,6 +803,41 @@ function AddEditModal({ student, classMeta, onClose, onSave, saving }) {
             placeholder="Enter class teacher"
             className="field-input"
           />
+        </div>
+
+        <div>
+          <label className="field-label">Stream / Group</label>
+          <select
+            value={form.stream || ""}
+            onChange={(event) => set("stream", event.target.value)}
+            className="field-input"
+          >
+            <option value="">General / No group</option>
+            <option>Science</option>
+            <option>Arts</option>
+            <option>Commerce</option>
+          </select>
+        </div>
+        <div className="sm:col-span-1">
+          <label className="field-label">Subjects</label>
+          <textarea
+            value={(form.subjects || []).join(", ")}
+            onChange={(event) =>
+              set(
+                "subjects",
+                event.target.value
+                  .split(",")
+                  .map((subject) => subject.trim())
+                  .filter(Boolean),
+              )
+            }
+            placeholder="Hindi, English, Mathematics, Science"
+            rows={3}
+            className="field-input"
+          />
+          <p className="mt-1 text-xs text-gray-400">
+            Enter subjects separated by commas. Admit cards/date sheets will show only assigned subjects.
+          </p>
         </div>
 
         <div>
@@ -1332,8 +1373,12 @@ export default function StudentsPage() {
             guardian_name: form.parentName,
             guardian_phone: form.parentContact,
             aadhar_number: form.aadharNumber.replace(/\s/g, "") || null,
+            subjects: form.subjects || [],
+            stream: form.stream || null,
             fee_status: form.fee || "Pending",
             is_active: form.isActive,
+            subjects: form.subjects || [],
+            stream: form.stream || null,
           };
           result = await api.update(form.id, updateData);
           savedId = form.id;
