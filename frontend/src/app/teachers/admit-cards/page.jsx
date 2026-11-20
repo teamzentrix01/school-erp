@@ -224,10 +224,28 @@ export default function TeacherAdmitCardsPage() {
 }
 
 function AdmitCardsPreview({ cards, onClose }) {
+  const [cardsPerPage, setCardsPerPage] = useState(1);
+  const pages = Array.from(
+    { length: Math.ceil(cards.length / cardsPerPage) },
+    (_, index) => cards.slice(index * cardsPerPage, (index + 1) * cardsPerPage),
+  );
+
   return (
     <div className="admit-cards-modal fixed inset-0 z-50 overflow-y-auto bg-black/60 p-4">
       <div className="mx-auto max-w-4xl">
-        <div className="print:hidden mb-3 flex justify-end gap-2">
+        <div className="print:hidden mb-3 flex items-center justify-end gap-2">
+          <label className="flex items-center gap-2 rounded-lg bg-white px-3 py-2 text-sm font-medium text-gray-700">
+            Cards per A4
+            <select
+              value={cardsPerPage}
+              onChange={(event) => setCardsPerPage(Number(event.target.value))}
+              className="rounded border border-gray-300 bg-white px-2 py-1 text-sm"
+            >
+              <option value={1}>1 card</option>
+              <option value={2}>2 cards</option>
+              <option value={3}>3 cards</option>
+            </select>
+          </label>
           <button
             onClick={() => window.print()}
             className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white"
@@ -238,13 +256,18 @@ function AdmitCardsPreview({ cards, onClose }) {
             <X size={18} />
           </button>
         </div>
-        <div id="admit-cards-print" className="space-y-4">
-          {cards.map((card) => (
-            <AdmitCardSheet
-              key={card.id}
-              card={card}
-              status={card.published ? "Released" : "On Hold"}
-            />
+        <div id="admit-cards-print" className={`cards-per-page-${cardsPerPage}`}>
+          {pages.map((page, pageIndex) => (
+            <section className="admit-card-print-page" key={`page-${pageIndex}`}>
+              {page.map((card) => (
+                <div className="admit-card-print-slot" key={card.id}>
+                  <AdmitCardSheet
+                    card={card}
+                    status={card.published ? "Released" : "On Hold"}
+                  />
+                </div>
+              ))}
+            </section>
           ))}
         </div>
       </div>

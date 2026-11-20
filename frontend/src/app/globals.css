@@ -123,6 +123,27 @@
     overflow: visible;
   }
 
+  .admit-card-print-page {
+    display: flex;
+    flex-direction: column;
+    width: 190mm;
+    height: 277mm;
+    gap: 3mm;
+    break-after: page;
+    page-break-after: always;
+    overflow: hidden;
+  }
+
+  .admit-card-print-page:last-child {
+    break-after: auto;
+    page-break-after: auto;
+  }
+
+  .admit-card-print-slot {
+    flex: 1 1 0;
+    overflow: hidden;
+  }
+
   /* The batch preview is normally a fixed, scrollable modal.  A print
      renderer only lays out the visible portion of such a container, which
      caused larger batches to stop after the first couple of admit cards. */
@@ -152,6 +173,26 @@
     box-sizing: border-box;
     font-size: 12px;
     page-break-before: always;
+  }
+
+  /* Batch pages decide page breaks; individual cards must not create an
+     extra page. Chromium's zoom keeps the whole detailed date sheet together. */
+  #admit-cards-print .admit-card-sheet {
+    margin: 0;
+    break-before: auto !important;
+    page-break-before: auto !important;
+  }
+
+  #admit-cards-print.cards-per-page-2 .admit-card-sheet {
+    width: 395mm;
+    min-height: 277mm;
+    zoom: 0.48;
+  }
+
+  #admit-cards-print.cards-per-page-3 .admit-card-sheet {
+    width: 594mm;
+    min-height: 277mm;
+    zoom: 0.32;
   }
 
   #admit-cards-print .admit-card-sheet:first-child,
