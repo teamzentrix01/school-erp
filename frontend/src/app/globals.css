@@ -123,6 +123,25 @@
     overflow: visible;
   }
 
+  /* The batch preview is normally a fixed, scrollable modal.  A print
+     renderer only lays out the visible portion of such a container, which
+     caused larger batches to stop after the first couple of admit cards. */
+  .admit-cards-modal {
+    position: static !important;
+    inset: auto !important;
+    overflow: visible !important;
+    height: auto !important;
+    min-height: 0 !important;
+    padding: 0 !important;
+    background: transparent !important;
+  }
+
+  .admit-cards-modal > div {
+    width: 190mm !important;
+    max-width: 190mm !important;
+    margin: 0 auto !important;
+  }
+
   .admit-card-sheet {
     break-inside: avoid;
     page-break-inside: avoid;
@@ -141,10 +160,12 @@
   }
 
   .admit-card-sheet:last-child {
+    break-after: auto;
     page-break-after: auto;
   }
 
   .admit-card-sheet + .admit-card-sheet {
+    break-before: page;
     page-break-before: always;
   }
 }

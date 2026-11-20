@@ -225,7 +225,7 @@ export default function TeacherAdmitCardsPage() {
 
 function AdmitCardsPreview({ cards, onClose }) {
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 p-4">
+    <div className="admit-cards-modal fixed inset-0 z-50 overflow-y-auto bg-black/60 p-4">
       <div className="mx-auto max-w-4xl">
         <div className="print:hidden mb-3 flex justify-end gap-2">
           <button
