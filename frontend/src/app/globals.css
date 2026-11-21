@@ -171,8 +171,36 @@
     margin: 0 auto;
     padding: 8mm;
     box-sizing: border-box;
-    font-size: 12px;
+    font-size: 12pt;
     page-break-before: always;
+  }
+
+  #admit-cards-print .admit-card-sheet,
+  #student-admit-card-print .admit-card-sheet {
+    font-size: 12pt;
+  }
+
+  #admit-cards-print .admit-card-sheet *,
+  #student-admit-card-print .admit-card-sheet * {
+    font-size: 12pt;
+    line-height: 1.35;
+  }
+
+  #admit-cards-print .admit-card-sheet header h1,
+  #student-admit-card-print .admit-card-sheet header h1 {
+    font-size: 17pt;
+  }
+
+  #admit-cards-print .admit-card-sheet header p,
+  #student-admit-card-print .admit-card-sheet header p {
+    font-size: 12pt;
+  }
+
+  #admit-cards-print .admit-card-sheet th,
+  #student-admit-card-print .admit-card-sheet th,
+  #admit-cards-print .admit-card-sheet td,
+  #student-admit-card-print .admit-card-sheet td {
+    font-size: 12pt;
   }
 
   /* Batch pages decide page breaks; individual cards must not create an

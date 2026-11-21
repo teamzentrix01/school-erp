@@ -56,17 +56,17 @@ export default function AdmitCardSheet({
   return (
     <article className="admit-card-sheet border-[3px] border-double border-slate-900 bg-white text-slate-900 shadow print:shadow-none">
       <header className="border-b-2 border-slate-900 px-3 py-2 text-center">
-        <p className="text-[10px] font-semibold">प्रवेश पत्र / ADMIT CARD</p>
-        <h1 className="mt-1 text-base font-extrabold uppercase leading-tight">
+        <p className="text-sm font-semibold">प्रवेश पत्र / ADMIT CARD</p>
+        <h1 className="mt-1 text-lg font-extrabold uppercase leading-tight">
           {SCHOOL_NAME}
         </h1>
-        <p className="mt-1 text-xs font-semibold">
+        <p className="mt-1 text-sm font-semibold">
           {card.exam_name || "Examination"}
           {card.academic_year ? ` · Academic Year ${card.academic_year}` : ""}
         </p>
       </header>
 
-      <div className="grid grid-cols-[1fr_88px] border-b border-slate-700 p-3 text-[11px]">
+      <div className="grid grid-cols-[1fr_88px] border-b border-slate-700 p-3 text-sm">
         <div className="grid grid-cols-2 gap-x-3 gap-y-2 pr-3">
           <p>
             <strong>छात्र का नाम / Student:</strong><br />
@@ -121,7 +121,7 @@ export default function AdmitCardSheet({
         </div>
       </div>
 
-      <table className="mt-3 w-full border-collapse text-[11px]">
+      <table className="mt-3 w-full border-collapse text-sm">
         <thead className="bg-slate-800 text-white">
           <tr>
             <th className="border border-slate-800 p-2 text-left">Subject</th>
@@ -159,13 +159,13 @@ export default function AdmitCardSheet({
         </tbody>
       </table>
 
-      <div className="mt-4 border border-slate-400 p-3 text-[10px] leading-4">
+      <div className="mt-4 border border-slate-400 p-3 text-sm leading-5">
         <strong>Important Instructions:</strong> Carry this admit card and school
         identity card. Report at the examination centre 30 minutes before the
         scheduled time. Electronic devices are not allowed.
       </div>
 
-      <div className="mt-5 grid grid-cols-4 items-end gap-3 text-center text-[10px] font-semibold">
+      <div className="mt-5 grid grid-cols-4 items-end gap-3 text-center text-sm font-semibold">
         <p>Student Signature</p>
         <p>Class Teacher</p>
         <p>Principal</p>
