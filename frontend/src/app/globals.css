@@ -229,7 +229,7 @@
   }
 
   #admit-cards-print.two-admit-cards-per-page .admit-card-sheet header h1 {
-    font-size: 14pt;
+    font-size: 13pt;
     line-height: 1.05;
     margin-top: 0;
   }
@@ -254,6 +254,12 @@
 
   #admit-cards-print.two-admit-cards-per-page .admit-card-details strong::after {
     content: " ";
+  }
+
+  /* Keep the card number and status alongside each other, leaving enough
+     vertical room for the required signature and verification footer. */
+  #admit-cards-print.two-admit-cards-per-page .admit-card-details p.col-span-2 {
+    grid-column: span 1 / span 1 !important;
   }
 
   #admit-cards-print.two-admit-cards-per-page .admit-card-photo {
