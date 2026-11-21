@@ -853,6 +853,11 @@ function ScheduleModal({ exams, initial, onClose, onSave }) {
 }
 
 function CardsModal({ cards, onClose }) {
+  const printPages = Array.from(
+    { length: Math.ceil(cards.length / 2) },
+    (_, index) => cards.slice(index * 2, index * 2 + 2),
+  );
+
   return (
     <div className="admit-cards-modal fixed inset-0 z-50 overflow-y-auto bg-black/60 p-4">
       <div className="mx-auto max-w-4xl">
@@ -870,15 +875,17 @@ function CardsModal({ cards, onClose }) {
             <X size={18} />
           </button>
         </div>
-        <div id="admit-cards-print">
-          {cards.map((card) => (
-            <section className="admit-card-print-page" key={card.id}>
-              <div className="admit-card-print-slot">
-                <AdmitCardSheet
-                  card={card}
-                  status={card.published ? "Released" : "On Hold"}
-                />
-              </div>
+        <div id="admit-cards-print" className="two-admit-cards-per-page">
+          {printPages.map((page, pageIndex) => (
+            <section className="admit-card-print-page" key={`page-${pageIndex}`}>
+              {page.map((card) => (
+                <div className="admit-card-print-slot" key={card.id}>
+                  <AdmitCardSheet
+                    card={card}
+                    status={card.published ? "Released" : "On Hold"}
+                  />
+                </div>
+              ))}
             </section>
           ))}
         </div>

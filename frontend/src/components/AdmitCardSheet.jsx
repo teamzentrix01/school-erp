@@ -106,7 +106,7 @@ export default function AdmitCardSheet({
             </p>
           )}
         </div>
-        <div className="flex h-[106px] w-[82px] items-center justify-center overflow-hidden border-2 border-slate-700 bg-slate-100">
+        <div className="admit-card-photo flex h-[106px] w-[82px] items-center justify-center overflow-hidden border-2 border-slate-700 bg-slate-100">
           {profile.photo_url ? (
             <img
               src={getMediaUrl(profile.photo_url)}
@@ -159,19 +159,19 @@ export default function AdmitCardSheet({
         </tbody>
       </table>
 
-      <div className="mt-4 border border-slate-400 p-3 text-sm leading-5">
+      <div className="admit-card-instructions mt-4 border border-slate-400 p-3 text-sm leading-5">
         <strong>Important Instructions:</strong> Carry this admit card and school
         identity card. Report at the examination centre 30 minutes before the
         scheduled time. Electronic devices are not allowed.
       </div>
 
-      <div className="mt-5 grid grid-cols-4 items-end gap-3 text-center text-sm font-semibold">
+      <div className="admit-card-footer mt-5 grid grid-cols-4 items-end gap-3 text-center text-sm font-semibold">
         <p>Student Signature</p>
         <p>Class Teacher</p>
         <p>Principal</p>
         {(verificationQr || generatedQr) ? (
           <div>
-            <img src={verificationQr || generatedQr} alt="Admit card verification QR" className="mx-auto h-16 w-16" />
+            <img src={verificationQr || generatedQr} alt="Admit card verification QR" className="admit-card-qr mx-auto h-16 w-16" />
             <p>Verification QR</p>
           </div>
         ) : (

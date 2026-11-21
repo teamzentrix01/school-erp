@@ -211,16 +211,65 @@
     page-break-before: auto !important;
   }
 
-  #admit-cards-print.cards-per-page-2 .admit-card-sheet {
-    width: 395mm;
-    min-height: 277mm;
-    zoom: 0.48;
+  /* Two cards per A4 with a true 12pt body font.  This is a compact layout,
+     not a scaled-down one, so printed text remains readable. */
+  #admit-cards-print.two-admit-cards-per-page .admit-card-print-slot {
+    flex: 0 0 calc((277mm - 3mm) / 2);
   }
 
-  #admit-cards-print.cards-per-page-3 .admit-card-sheet {
-    width: 594mm;
-    min-height: 277mm;
-    zoom: 0.32;
+  #admit-cards-print.two-admit-cards-per-page .admit-card-sheet {
+    width: 190mm;
+    min-height: 0;
+    height: 137mm;
+    padding: 2mm;
+  }
+
+  #admit-cards-print.two-admit-cards-per-page .admit-card-sheet header {
+    padding: 1mm 2mm;
+  }
+
+  #admit-cards-print.two-admit-cards-per-page .admit-card-sheet header h1 {
+    font-size: 14pt;
+  }
+
+  #admit-cards-print.two-admit-cards-per-page .admit-card-sheet > div:first-of-type {
+    gap: 0 !important;
+    padding: 1.5mm 2mm;
+  }
+
+  #admit-cards-print.two-admit-cards-per-page .admit-card-sheet p {
+    line-height: 1.08;
+  }
+
+  #admit-cards-print.two-admit-cards-per-page .admit-card-photo {
+    height: 18mm;
+    width: 15mm;
+  }
+
+  #admit-cards-print.two-admit-cards-per-page .admit-card-sheet table {
+    margin-top: 1mm;
+  }
+
+  #admit-cards-print.two-admit-cards-per-page .admit-card-sheet th,
+  #admit-cards-print.two-admit-cards-per-page .admit-card-sheet td {
+    padding: 0.5mm 1.5mm;
+    line-height: 1.08;
+  }
+
+  #admit-cards-print.two-admit-cards-per-page .admit-card-instructions {
+    margin-top: 1mm;
+    padding: 1mm 1.5mm;
+    line-height: 1.08;
+  }
+
+  #admit-cards-print.two-admit-cards-per-page .admit-card-footer {
+    margin-top: 1mm;
+    gap: 1mm;
+  }
+
+  #admit-cards-print.two-admit-cards-per-page .admit-card-qr {
+    height: 10mm;
+    width: 10mm;
   }
 
   #admit-cards-print .admit-card-sheet:first-child,
