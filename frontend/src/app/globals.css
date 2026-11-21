@@ -230,46 +230,65 @@
 
   #admit-cards-print.two-admit-cards-per-page .admit-card-sheet header h1 {
     font-size: 14pt;
+    line-height: 1.05;
+    margin-top: 0;
   }
 
-  #admit-cards-print.two-admit-cards-per-page .admit-card-sheet > div:first-of-type {
+  #admit-cards-print.two-admit-cards-per-page .admit-card-sheet header p {
+    line-height: 1.05;
+    margin-top: 0;
+  }
+
+  #admit-cards-print.two-admit-cards-per-page .admit-card-details {
     gap: 0 !important;
-    padding: 1.5mm 2mm;
+    padding: 0.75mm 1.5mm;
   }
 
-  #admit-cards-print.two-admit-cards-per-page .admit-card-sheet p {
+  #admit-cards-print.two-admit-cards-per-page .admit-card-details p {
     line-height: 1.08;
   }
 
+  #admit-cards-print.two-admit-cards-per-page .admit-card-details br {
+    display: none;
+  }
+
+  #admit-cards-print.two-admit-cards-per-page .admit-card-details strong::after {
+    content: " ";
+  }
+
   #admit-cards-print.two-admit-cards-per-page .admit-card-photo {
-    height: 18mm;
-    width: 15mm;
+    height: 15mm;
+    width: 13mm;
   }
 
   #admit-cards-print.two-admit-cards-per-page .admit-card-sheet table {
-    margin-top: 1mm;
+    margin-top: 0.5mm;
   }
 
   #admit-cards-print.two-admit-cards-per-page .admit-card-sheet th,
   #admit-cards-print.two-admit-cards-per-page .admit-card-sheet td {
-    padding: 0.5mm 1.5mm;
-    line-height: 1.08;
+    padding: 0.2mm 1.5mm;
+    line-height: 1.02;
   }
 
   #admit-cards-print.two-admit-cards-per-page .admit-card-instructions {
-    margin-top: 1mm;
-    padding: 1mm 1.5mm;
-    line-height: 1.08;
+    margin-top: 0.5mm;
+    padding: 0.5mm 1.5mm;
+    line-height: 1.02;
   }
 
   #admit-cards-print.two-admit-cards-per-page .admit-card-footer {
-    margin-top: 1mm;
+    margin-top: 0.5mm;
     gap: 1mm;
   }
 
+  #admit-cards-print.two-admit-cards-per-page .admit-card-footer p {
+    line-height: 1.02;
+  }
+
   #admit-cards-print.two-admit-cards-per-page .admit-card-qr {
-    height: 10mm;
-    width: 10mm;
+    height: 8mm;
+    width: 8mm;
   }
 
   #admit-cards-print .admit-card-sheet:first-child,

@@ -66,7 +66,7 @@ export default function AdmitCardSheet({
         </p>
       </header>
 
-      <div className="grid grid-cols-[1fr_88px] border-b border-slate-700 p-3 text-sm">
+      <div className="admit-card-details grid grid-cols-[1fr_88px] border-b border-slate-700 p-3 text-sm">
         <div className="grid grid-cols-2 gap-x-3 gap-y-2 pr-3">
           <p>
             <strong>छात्र का नाम / Student:</strong><br />
